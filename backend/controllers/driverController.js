@@ -2,11 +2,36 @@ const pool = require("../db/connection");
 const { body, validationResult } = require("express-validator");
 
 const getProfile = async (req, res) => {
-  const [rows] = await pool.query(
-    "SELECT id, full_name, phone, email, park_id, license_number, plate_number, passport_photo, status FROM users WHERE id = ?",
-    [req.user.id],
-  );
-  res.json(rows[0] || {});
+  try {
+    const driverId = req.user.id;
+    const today = new Date().toISOString().split("T")[0];
+
+    const [userRows] = await pool.query(
+      `SELECT id, full_name, phone, email, park_id, license_number, plate_number, passport_photo, status
+       FROM users
+       WHERE id = ?`,
+      [driverId],
+    );
+
+    if (!userRows.length) {
+      return res.status(404).json({ message: "Driver not found" });
+    }
+
+    const [paymentRows] = await pool.query(
+      `SELECT status
+       FROM daily_payments
+       WHERE driver_id = ? AND payment_date = ?`,
+      [driverId, today],
+    );
+
+    res.json({
+      ...userRows[0],
+      payment_status: paymentRows.length ? paymentRows[0].status : "pending",
+    });
+  } catch (err) {
+    console.error("Get profile error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 };
 
 const makePayment = async (req, res) => {

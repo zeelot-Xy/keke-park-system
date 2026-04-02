@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import io from "socket.io-client";
 import toast from "react-hot-toast";
-import { LogOut, Truck } from "lucide-react";
+import { LogOut, Truck, CreditCard } from "lucide-react";
 
 const socket = io("http://localhost:5000", { withCredentials: true });
 
@@ -11,12 +11,18 @@ export default function DriverDashboard({ user, setUser }) {
   const [position, setPosition] = useState(null);
   const [cooldown, setCooldown] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [profile, setProfile] = useState(null);
 
   useEffect(() => {
     const fetchDriverData = async () => {
       try {
-        await axios.get("/api/driver/profile");
-        const queueRes = await axios.get("/api/driver/queue-position");
+        const [profileRes, queueRes] = await Promise.all([
+          axios.get("/api/driver/profile"),
+          axios.get("/api/driver/queue-position"),
+        ]);
+
+        setProfile(profileRes.data);
+        setPaymentStatus(profileRes.data.payment_status || "pending");
         setPosition(queueRes.data);
       } catch (err) {
         toast.error(
@@ -35,14 +41,12 @@ export default function DriverDashboard({ user, setUser }) {
     };
 
     fetchDriverData();
-
     socket.on("queueUpdated", handleQueueUpdate);
 
-    return () => {
-      socket.off("queueUpdated", handleQueueUpdate);
-    };
+    return () => socket.off("queueUpdated", handleQueueUpdate);
   }, []);
 
+  // Cooldown Timer
   useEffect(() => {
     if (cooldown <= 0) return;
 
@@ -71,7 +75,6 @@ export default function DriverDashboard({ user, setUser }) {
 
   const handleJoinQueue = async () => {
     setLoading(true);
-
     try {
       await axios.post("/api/driver/join-queue");
       toast.success("Joined queue! Position updating live...");
@@ -105,92 +108,121 @@ export default function DriverDashboard({ user, setUser }) {
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-[#FFED00] to-white p-4 font-sans">
-      <div className="flex justify-between items-center mb-8 bg-white rounded-3xl p-6 shadow">
-        <div className="flex items-center gap-4">
-          <div className="text-5xl">🚕</div>
-          <div>
-            <h1 className="text-3xl font-bold text-[#1A1A1A]">Keke Park</h1>
-            <p className="text-sm text-gray-600">Port Harcourt • Single Park</p>
+    <div className="min-h-screen bg-linear-to-b from-[#FFED00] to-white flex flex-col font-sans">
+      {/* Sticky Header */}
+      <div className="bg-[#1A1A1A] text-white sticky top-0 z-50 shadow-md">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="text-4xl">🚕</div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Keke Park</h1>
+              <p className="text-xs text-gray-400">
+                Driver Portal • Port Harcourt
+              </p>
+            </div>
           </div>
-        </div>
 
-        <button
-          onClick={logout}
-          className="flex items-center gap-2 bg-red-100 text-red-700 px-6 py-3 rounded-2xl font-bold">
-          <LogOut size={20} /> Logout
-        </button>
+          <button
+            onClick={logout}
+            className="flex items-center gap-2 px-5 py-2.5 bg-red-600/80 hover:bg-red-700 rounded-2xl text-sm font-medium active:scale-95 transition">
+            <LogOut size={18} /> Logout
+          </button>
+        </div>
       </div>
 
-      <div className="max-w-2xl mx-auto space-y-6">
-        <div className="bg-white rounded-3xl p-8 shadow">
-          <div className="flex gap-6 items-center">
-            <div className="w-24 h-24 bg-gray-200 rounded-2xl overflow-hidden">
-              {user?.passport_photo && (
+      {/* Main Content */}
+      <div className="flex-1 max-w-2xl mx-auto w-full px-4 sm:px-6 py-8 space-y-8 pb-24">
+        {/* Profile Card */}
+        <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8">
+          <div className="flex flex-col sm:flex-row items-center gap-6">
+            <div className="w-24 h-24 sm:w-28 sm:h-28 bg-gray-200 rounded-3xl overflow-hidden border-4 border-[#FFED00] shrink-0">
+              {profile?.passport_photo && (
                 <img
-                  src={`http://localhost:5000${user.passport_photo}`}
+                  src={`http://localhost:5000${profile.passport_photo}`}
                   alt="Passport"
                   className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
                 />
               )}
             </div>
-
-            <div>
-              <h2 className="text-2xl font-bold">{user?.full_name}</h2>
-              <p className="text-xl text-[#008000] font-mono">
-                {user?.park_id || "Pending Approval"}
+            <div className="flex-1 text-center sm:text-left">
+              <h2 className="text-2xl sm:text-3xl font-bold text-[#1A1A1A]">
+                {profile?.full_name || user?.full_name}
+              </h2>
+              <p className="text-[#008000] font-mono text-xl font-semibold mt-1">
+                {profile?.park_id || user?.park_id || "Pending Approval"}
               </p>
-              <p>Plate: {user?.plate_number}</p>
+              <p className="text-gray-600 mt-1">
+                Plate: {profile?.plate_number || "N/A"}
+              </p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl p-8 shadow flex justify-between items-center">
-          <div>
-            <p className="text-sm text-gray-500">Today's Payment</p>
-            <div
-              className={`text-4xl font-bold ${
-                paymentStatus === "paid" ? "text-[#008000]" : "text-red-600"
-              }`}>
-              {paymentStatus === "paid" ? "PAID ✅" : "PENDING"}
+        {/* Payment Status Card */}
+        <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+            <div>
+              <div className="flex items-center gap-2 text-gray-500 mb-2">
+                <CreditCard size={24} />
+                <span className="font-medium text-lg">Today's Park Fee</span>
+              </div>
+              <div
+                className={`text-5xl font-bold ${paymentStatus === "paid" ? "text-[#008000]" : "text-red-600"}`}>
+                {paymentStatus === "paid" ? "PAID ✓" : "PENDING"}
+              </div>
             </div>
-          </div>
 
-          {paymentStatus !== "paid" && (
-            <button
-              onClick={handlePayment}
-              className="bg-[#008000] text-white px-10 py-5 rounded-2xl text-xl font-bold active:scale-95">
-              Pay ₦500 Now
-            </button>
-          )}
+            {paymentStatus !== "paid" && (
+              <button
+                onClick={handlePayment}
+                className="w-full sm:w-auto bg-[#008000] hover:bg-green-700 text-white font-bold px-10 py-5 rounded-3xl text-xl active:scale-95 transition">
+                Pay ₦500 Now
+              </button>
+            )}
+          </div>
         </div>
 
+        {/* Join Queue Button */}
         <button
           onClick={handleJoinQueue}
           disabled={
             loading ||
+            paymentStatus !== "paid" ||
             position?.status === "waiting" ||
             position?.status === "loading"
           }
-          className="w-full bg-[#FFED00] hover:bg-yellow-300 disabled:bg-gray-300 disabled:cursor-not-allowed text-[#1A1A1A] font-bold py-8 rounded-3xl text-3xl shadow-xl active:scale-95 transition flex items-center justify-center gap-4">
-          <Truck size={32} /> {loading ? "Joining..." : "JOIN QUEUE NOW"}
+          className="w-full bg-[#FFED00] hover:bg-yellow-300 disabled:bg-gray-300 disabled:cursor-not-allowed text-[#1A1A1A] font-bold py-10 sm:py-12 rounded-3xl text-3xl shadow-2xl active:scale-[0.97] transition flex items-center justify-center gap-4">
+          <Truck size={40} className={loading ? "" : "animate-bounce"} />
+          {loading ? "Joining..." : "JOIN QUEUE NOW"}
         </button>
 
+        {/* Live Position Card */}
         {position?.position && (
-          <div className="bg-white rounded-3xl p-10 text-center shadow">
-            <p className="text-gray-500 text-xl">Your Position in Queue</p>
-            <div className="text-[120px] font-black text-[#1A1A1A] leading-none">
+          <div className="bg-white rounded-3xl shadow-xl p-8 sm:p-12 text-center">
+            <p className="text-gray-500 text-lg mb-3">Your Current Position</p>
+            <div className="text-[90px] sm:text-[120px] lg:text-[140px] leading-none font-black text-[#1A1A1A]">
               {position.position}
             </div>
-            <p className="text-2xl text-[#008000]">
+            <p className="text-2xl sm:text-3xl font-semibold text-[#008000] mt-2">
               {position.position === 1 ? "Next to Load" : "In Queue"}
             </p>
           </div>
         )}
 
+        {/* Cooldown Warning */}
         {cooldown > 0 && (
-          <div className="text-center text-red-600 font-bold">
-            Cooldown: {cooldown} minutes remaining
+          <div className="bg-red-50 border border-red-200 text-red-700 p-8 rounded-3xl text-center text-xl font-bold">
+            Cooldown Active — Wait {cooldown} minutes before re-joining
+          </div>
+        )}
+
+        {/* Loading Status */}
+        {position?.status === "loading" && (
+          <div className="text-center bg-orange-100 text-orange-700 py-8 rounded-3xl text-xl font-bold">
+            You are currently being loaded
           </div>
         )}
       </div>
