@@ -117,7 +117,7 @@ export default function DriverDashboard({ user, setUser }) {
             <div>
               <h1 className="text-2xl font-bold tracking-tight">Keke Park</h1>
               <p className="text-xs text-gray-400">
-                Driver Portal • Port Harcourt
+                Driver Portal • Benue Makurdi
               </p>
             </div>
           </div>
@@ -170,7 +170,7 @@ export default function DriverDashboard({ user, setUser }) {
                 <span className="font-medium text-lg">Today's Park Fee</span>
               </div>
               <div
-                className={`text-5xl font-bold ${paymentStatus === "paid" ? "text-[#008000]" : "text-red-600"}`}>
+                className={`text-5xl text-center font-bold ${paymentStatus === "paid" ? "text-[#008000]" : "text-red-600"}`}>
                 {paymentStatus === "paid" ? "PAID ✓" : "PENDING"}
               </div>
             </div>
@@ -194,7 +194,7 @@ export default function DriverDashboard({ user, setUser }) {
             position?.status === "waiting" ||
             position?.status === "loading"
           }
-          className="w-full bg-[#FFED00] hover:bg-yellow-300 disabled:bg-gray-300 disabled:cursor-not-allowed text-[#1A1A1A] font-bold py-10 sm:py-12 rounded-3xl text-3xl shadow-2xl active:scale-[0.97] transition flex items-center justify-center gap-4">
+          className="w-full bg-[#FFED00] hover:bg-yellow-300 disabled:bg-gray-300 disabled:cursor-not-allowed text-[#1A1A1A] font-bold py-10 sm:py-12 px-6 rounded-3xl text-3xl shadow-2xl active:scale-[0.97] transition flex items-center justify-center gap-4">
           <Truck size={40} className={loading ? "" : "animate-bounce"} />
           {loading ? "Joining..." : "JOIN QUEUE NOW"}
         </button>
