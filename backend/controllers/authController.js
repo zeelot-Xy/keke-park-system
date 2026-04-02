@@ -12,8 +12,39 @@ const register = async (req, res) => {
     });
   }
 
-  const { full_name, phone, email, password, license_number, plate_number } =
+  let { full_name, phone, email, password, license_number, plate_number } =
     req.body;
+
+  // Normalize inputs
+  full_name = full_name.trim();
+  if (phone.startsWith("0")) {
+    phone = "+234" + phone.slice(1);
+  }
+  // EMAIL
+  if (email) {
+    email = email.trim().toLowerCase();
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ message: "Invalid email format" });
+    }
+  } else {
+    email = null;
+  }
+
+  // Licence
+  license_number = license_number.toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+  plate_number = plate_number.toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+  // Reformat plate to ABC-123DE
+  if (plate_number.length >= 8) {
+    plate_number = `${plate_number.slice(0, 3)}-${plate_number.slice(
+      3,
+      6,
+    )}${plate_number.slice(6, 8)}`;
+  }
   const passport_photo = req.file ? `/uploads/${req.file.filename}` : null;
 
   if (!passport_photo) {

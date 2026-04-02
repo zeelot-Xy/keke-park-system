@@ -39,6 +39,21 @@ const getLiveQueue = async (req, res) => {
   `);
   res.json(queue);
 };
+const getAllDrivers = async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, full_name, phone, email, park_id, license_number, plate_number, passport_photo, status, created_at
+       FROM users
+       WHERE role = "driver"
+       ORDER BY created_at DESC`,
+    );
+
+    res.json(rows);
+  } catch (err) {
+    console.error("Get all drivers error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
 
 const loadFirstDriver = async (req, res) => {
   const [first] = await pool.query(
@@ -78,4 +93,5 @@ module.exports = {
   getLiveQueue,
   loadFirstDriver,
   completeLoading,
+  getAllDrivers,
 };

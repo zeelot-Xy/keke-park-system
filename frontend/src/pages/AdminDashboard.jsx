@@ -10,6 +10,7 @@ export default function AdminDashboard({ setUser }) {
   const [activeTab, setActiveTab] = useState("queue");
   const [pending, setPending] = useState([]);
   const [queue, setQueue] = useState([]);
+  const [drivers, setDrivers] = useState([]);
 
   const hasWaiting = queue.some((entry) => entry.status === "waiting");
   const hasLoading = queue.some((entry) => entry.status === "loading");
@@ -17,6 +18,7 @@ export default function AdminDashboard({ setUser }) {
   useEffect(() => {
     fetchPending();
     fetchQueue();
+    fetchDrivers();
 
     socket.on("queueUpdated", fetchQueue);
 
@@ -45,6 +47,14 @@ export default function AdminDashboard({ setUser }) {
     }
   };
 
+  const fetchDrivers = async () => {
+    try {
+      const res = await axios.get("/api/admin/drivers");
+      setDrivers(res.data);
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Could not fetch drivers");
+    }
+  };
   const approve = async (id) => {
     try {
       await axios.post(`/api/admin/approve/${id}`);
@@ -276,8 +286,51 @@ export default function AdminDashboard({ setUser }) {
           )}
 
           {activeTab === "drivers" && (
-            <div className="max-w-4xl mx-auto text-center py-20">
-              <p className="text-3xl text-gray-400">All Drivers Page</p>
+            <div>
+              <h2 className="text-4xl font-bold mb-8">
+                All Registered Drivers
+              </h2>
+
+              <div className="grid gap-6">
+                {drivers.map((driver) => (
+                  <div
+                    key={driver.id}
+                    className="bg-white/10 p-8 rounded-3xl flex gap-8 items-start">
+                    {driver.passport_photo && (
+                      <img
+                        src={`http://localhost:5000${driver.passport_photo}`}
+                        alt="Passport"
+                        className="w-24 h-24 object-cover rounded-2xl"
+                      />
+                    )}
+
+                    <div className="flex-1">
+                      <h3 className="text-2xl font-bold">{driver.full_name}</h3>
+                      <p className="text-xl">📱 {driver.phone}</p>
+                      <p>Email: {driver.email || "N/A"}</p>
+                      <p>Park ID: {driver.park_id || "Not assigned"}</p>
+                      <p>License: {driver.license_number}</p>
+                      <p>Plate: {driver.plate_number}</p>
+                      <p
+                        className={`mt-2 font-bold ${
+                          driver.status === "approved"
+                            ? "text-green-400"
+                            : driver.status === "pending"
+                              ? "text-yellow-300"
+                              : "text-red-400"
+                        }`}>
+                        Status: {driver.status.toUpperCase()}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+
+                {drivers.length === 0 && (
+                  <p className="text-center text-2xl text-gray-400 py-20">
+                    No drivers found
+                  </p>
+                )}
+              </div>
             </div>
           )}
         </div>

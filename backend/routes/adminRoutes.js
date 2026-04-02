@@ -8,6 +8,7 @@ const {
   getLiveQueue,
   loadFirstDriver,
   completeLoading,
+  getAllDrivers,
 } = require("../controllers/adminController");
 
 router.get(
@@ -16,6 +17,7 @@ router.get(
   authorizeRole(["admin"]),
   getPendingDrivers,
 );
+router.get("/drivers", authenticate, authorizeRole(["admin"]), getAllDrivers);
 router.post(
   "/approve/:id",
   authenticate,
