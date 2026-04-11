@@ -1,0 +1,127 @@
+version: "2"
+type: frontend
+tech_stack:
+  - JavaScript
+  - React 19
+  - React Router
+  - Vite
+  - Tailwind CSS 4
+  - Axios
+  - Socket.IO Client
+  - react-hot-toast
+routes:
+  - path: /
+    file: frontend/src/App.jsx
+    auth_required: false
+    description: Redirects visitors to the login page.
+  - path: /login
+    file: frontend/src/pages/Login.jsx
+    auth_required: false
+    description: Driver or admin login page using phone number and password.
+  - path: /register
+    file: frontend/src/pages/Register.jsx
+    auth_required: false
+    description: Driver self-service registration form with client-side validation and passport photo upload.
+  - path: /driver
+    file: frontend/src/pages/DriverDashboard.jsx
+    auth_required: true
+    description: Driver dashboard for profile, payment status, and live queue participation.
+  - path: /admin
+    file: frontend/src/pages/AdminDashboard.jsx
+    auth_required: true
+    description: Admin dashboard for approvals, live queue control, and driver records.
+features:
+  - name: User Login
+    description: Logs a driver or admin into the system with phone number and password, then redirects by role.
+    files:
+      - frontend/src/App.jsx
+      - frontend/src/pages/Login.jsx
+    entry_route: /login
+    user_interactions:
+      - Fill the phone number field.
+      - Fill the password field.
+      - Click the Login button.
+      - See a success toast and redirect on valid credentials.
+      - See an error toast when credentials are invalid.
+    api_calls:
+      - method: GET
+        endpoint: /api/auth/me
+      - method: POST
+        endpoint: /api/auth/login
+    auth_required: false
+  - name: Driver Registration
+    description: Lets a new driver register with personal details, vehicle details, password, and passport photo upload.
+    files:
+      - frontend/src/pages/Register.jsx
+    entry_route: /register
+    user_interactions:
+      - Fill full name, phone, email, password, licence number, and plate number.
+      - Upload a passport photo.
+      - Review inline validation messages.
+      - Click the Register button to submit.
+      - See a success or failure toast after submission.
+    api_calls:
+      - method: POST
+        endpoint: /api/auth/register
+    auth_required: false
+  - name: Driver Dashboard
+    description: Shows the logged-in driver profile, daily payment status, queue position, and cooldown state.
+    files:
+      - frontend/src/App.jsx
+      - frontend/src/pages/DriverDashboard.jsx
+    entry_route: /driver
+    user_interactions:
+      - Open the dashboard after login.
+      - Review profile details and passport photo.
+      - Click Pay to record the daily park fee.
+      - Click Join Queue Now to enter the live queue.
+      - Watch queue position update and logout when finished.
+    api_calls:
+      - method: GET
+        endpoint: /api/driver/profile
+      - method: GET
+        endpoint: /api/driver/queue-position
+      - method: POST
+        endpoint: /api/driver/payment
+      - method: POST
+        endpoint: /api/driver/join-queue
+      - method: POST
+        endpoint: /api/auth/logout
+    auth_required: true
+  - name: Admin Queue Management
+    description: Allows an authenticated admin to review pending drivers, manage the queue, and inspect driver records.
+    files:
+      - frontend/src/App.jsx
+      - frontend/src/pages/AdminDashboard.jsx
+    entry_route: /admin
+    user_interactions:
+      - Open the admin dashboard after login.
+      - Switch between queue, pending approvals, and drivers tabs.
+      - Approve or reject pending drivers.
+      - Click Load First Driver and Complete Loading in the live queue.
+      - Logout from the admin portal.
+    api_calls:
+      - method: GET
+        endpoint: /api/admin/pending-drivers
+      - method: GET
+        endpoint: /api/admin/queue
+      - method: GET
+        endpoint: /api/admin/drivers
+      - method: POST
+        endpoint: /api/admin/approve/:id
+      - method: POST
+        endpoint: /api/admin/reject/:id
+      - method: POST
+        endpoint: /api/admin/load-first
+      - method: POST
+        endpoint: /api/admin/complete-loading
+      - method: POST
+        endpoint: /api/auth/logout
+    auth_required: true
+known_limitations:
+  - issue: Admin workflows depend on an existing approved admin account and seeded data, but no admin bootstrap flow is exposed in the frontend.
+    location: frontend/src/pages/Login.jsx
+    impact: Automated testing may be unable to exercise admin-only paths on a fresh database without pre-seeded credentials.
+  - issue: Driver dashboard actions rely on authenticated backend state and uploaded assets from prior registration.
+    location: frontend/src/pages/DriverDashboard.jsx
+    impact: End-to-end coverage of payment and queue flows depends on successful account creation and approval in backend data.
