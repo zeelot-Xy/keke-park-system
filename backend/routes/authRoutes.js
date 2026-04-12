@@ -1,5 +1,5 @@
 const express = require("express");
-const router = express.Router();
+const { body } = require("express-validator");
 const upload = require("../middleware/upload");
 const {
   register,
@@ -7,11 +7,16 @@ const {
   refresh,
   logout,
 } = require("../controllers/authController");
-const { body } = require("express-validator");
-const pool = require("../db/connection"); // ← Import pool
-const { authenticate } = require("../middleware/auth"); // ← Import authenticate
+const pool = require("../db/connection");
+const { authenticate } = require("../middleware/auth");
+const {
+  normalizePhone,
+  normalizeLicenseNumber,
+  normalizePlateNumber,
+} = require("../utils/normalizers");
 
-// Register route - Multer must come BEFORE validation
+const router = express.Router();
+
 router.post(
   "/register",
   upload.single("passport_photo"),
@@ -19,19 +24,16 @@ router.post(
     body("full_name")
       .trim()
       .isLength({ min: 3, max: 60 })
-      .matches(/^[A-Za-zÀ-ÿ' -]+$/)
-      .withMessage("Full name must be 3–60 letters only."),
-
+      .matches(/^[A-Za-z' -]+$/)
+      .withMessage("Full name must be 3-60 letters only."),
     body("phone")
-      .trim()
-      .matches(/^(?:\+234|0)[789][01]\d{8}$/)
+      .customSanitizer((value) => normalizePhone(value))
+      .matches(/^\+234[789][01]\d{8}$/)
       .withMessage("Enter a valid Nigerian phone number."),
-
     body("email")
       .optional({ values: "falsy" })
       .isEmail()
       .withMessage("Enter a valid email address."),
-
     body("password")
       .isLength({ min: 8, max: 64 })
       .matches(/(?=.*[a-z])/)
@@ -41,28 +43,37 @@ router.post(
       .withMessage(
         "Password must contain uppercase, lowercase, number, and special character.",
       ),
-
     body("license_number")
-      .trim()
+      .customSanitizer((value) => normalizeLicenseNumber(value))
       .matches(/^[A-Z0-9]{8,20}$/)
-      .withMessage("Licence number must be 8–20 uppercase letters/numbers."),
-
+      .withMessage("Licence number must be 8-20 uppercase letters/numbers."),
     body("plate_number")
-      .trim()
+      .customSanitizer((value) => normalizePlateNumber(value))
       .matches(/^[A-Z]{3}-\d{3}[A-Z]{2}$/)
       .withMessage("Plate number must follow the format ABC-123DE."),
   ],
   register,
 );
 
-router.post("/login", login);
+router.post(
+  "/login",
+  [
+    body("phone")
+      .customSanitizer((value) => normalizePhone(value))
+      .matches(/^\+234[789][01]\d{8}$/)
+      .withMessage("Enter a valid Nigerian phone number."),
+    body("password").trim().notEmpty().withMessage("Password is required."),
+  ],
+  login,
+);
+
 router.post("/refresh", refresh);
 router.post("/logout", logout);
 
 router.get("/me", authenticate, async (req, res) => {
   try {
     const [rows] = await pool.query(
-      "SELECT id, role, full_name, phone, email, park_id, status FROM users WHERE id = ?",
+      "SELECT id, role, full_name, phone, email, park_id, status FROM users WHERE id = $1",
       [req.user.id],
     );
 

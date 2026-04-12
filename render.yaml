@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: keke-park-backend
+    runtime: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start

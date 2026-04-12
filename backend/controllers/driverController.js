@@ -1,15 +1,15 @@
 const pool = require("../db/connection");
-const { body, validationResult } = require("express-validator");
+const { getCurrentDateInLagos } = require("../utils/date");
 
 const getProfile = async (req, res) => {
   try {
     const driverId = req.user.id;
-    const today = new Date().toISOString().split("T")[0];
+    const today = getCurrentDateInLagos();
 
     const [userRows] = await pool.query(
       `SELECT id, full_name, phone, email, park_id, license_number, plate_number, passport_photo, status
        FROM users
-       WHERE id = ?`,
+       WHERE id = $1`,
       [driverId],
     );
 
@@ -20,7 +20,7 @@ const getProfile = async (req, res) => {
     const [paymentRows] = await pool.query(
       `SELECT status
        FROM daily_payments
-       WHERE driver_id = ? AND payment_date = ?`,
+       WHERE driver_id = $1 AND payment_date = $2`,
       [driverId, today],
     );
 
@@ -35,82 +35,109 @@ const getProfile = async (req, res) => {
 };
 
 const makePayment = async (req, res) => {
-  const driverId = req.user.id;
-  const today = new Date().toISOString().split("T")[0];
+  try {
+    const driverId = req.user.id;
+    const today = getCurrentDateInLagos();
 
-  await pool.query(
-    'INSERT INTO daily_payments (driver_id, payment_date, status, paid_at) VALUES (?, ?, "paid", NOW()) ON DUPLICATE KEY UPDATE status = "paid", paid_at = NOW()',
-    [driverId, today],
-  );
-  global.io.emit("queueUpdated");
-  res.json({ message: "Daily payment successful for today" });
+    await pool.query(
+      `INSERT INTO daily_payments (driver_id, payment_date, status, paid_at)
+       VALUES ($1, $2, 'paid', NOW())
+       ON CONFLICT (driver_id, payment_date)
+       DO UPDATE SET status = 'paid', paid_at = NOW()`,
+      [driverId, today],
+    );
+    global.io.emit("queueUpdated");
+    res.json({ message: "Daily payment successful for today" });
+  } catch (err) {
+    console.error("Make payment error:", err);
+    res.status(500).json({ message: "Unable to record payment" });
+  }
 };
 
 const joinQueue = async (req, res) => {
-  const driverId = req.user.id;
-  const today = new Date().toISOString().split("T")[0];
+  try {
+    const driverId = req.user.id;
+    const today = getCurrentDateInLagos();
 
-  // 1. Check payment today
-  const [paymentRows] = await pool.query(
-    'SELECT 1 FROM daily_payments WHERE driver_id = ? AND payment_date = ? AND status = "paid"',
-    [driverId, today],
-  );
-  if (!paymentRows.length)
-    return res.status(400).json({ message: "Please make daily payment first" });
-
-  // 2. Not already in queue
-  const [queueRows] = await pool.query(
-    'SELECT 1 FROM queue_entries WHERE driver_id = ? AND status IN ("waiting", "loading")',
-    [driverId],
-  );
-  if (queueRows.length)
-    return res.status(400).json({ message: "You are already in the queue" });
-
-  // 3. Cooldown check (220 minutes)
-  const [cooldownRows] = await pool.query(
-    "SELECT last_join FROM cooldown_log WHERE driver_id = ?",
-    [driverId],
-  );
-  if (cooldownRows.length) {
-    const lastJoin = new Date(cooldownRows[0].last_join);
-    const minutesSince = (Date.now() - lastJoin.getTime()) / (1000 * 60);
-    if (minutesSince < 220) {
-      const waitMin = Math.ceil(220 - minutesSince);
-      return res.status(400).json({
-        message: `Cooldown active. Please wait ${waitMin} minutes before re-joining.`,
-      });
+    const [paymentRows] = await pool.query(
+      `SELECT 1
+       FROM daily_payments
+       WHERE driver_id = $1 AND payment_date = $2 AND status = 'paid'`,
+      [driverId, today],
+    );
+    if (!paymentRows.length) {
+      return res
+        .status(400)
+        .json({ message: "Please make daily payment first" });
     }
+
+    const [queueRows] = await pool.query(
+      `SELECT 1
+       FROM queue_entries
+       WHERE driver_id = $1 AND status IN ('waiting', 'loading')`,
+      [driverId],
+    );
+    if (queueRows.length) {
+      return res.status(400).json({ message: "You are already in the queue" });
+    }
+
+    const [cooldownRows] = await pool.query(
+      "SELECT last_join FROM cooldown_log WHERE driver_id = $1",
+      [driverId],
+    );
+    if (cooldownRows.length) {
+      const lastJoin = new Date(cooldownRows[0].last_join);
+      const minutesSince = (Date.now() - lastJoin.getTime()) / (1000 * 60);
+      if (minutesSince < 220) {
+        const waitMin = Math.ceil(220 - minutesSince);
+        return res.status(400).json({
+          message: `Cooldown active. Please wait ${waitMin} minutes before re-joining.`,
+          cooldownMinutes: waitMin,
+        });
+      }
+    }
+
+    await pool.query(
+      "INSERT INTO queue_entries (driver_id, status) VALUES ($1, 'waiting')",
+      [driverId],
+    );
+    await pool.query(
+      `INSERT INTO cooldown_log (driver_id, last_join)
+       VALUES ($1, NOW())
+       ON CONFLICT (driver_id)
+       DO UPDATE SET last_join = NOW()`,
+      [driverId],
+    );
+
+    global.io.emit("queueUpdated");
+    res.json({ message: "Successfully joined the queue" });
+  } catch (err) {
+    console.error("Join queue error:", err);
+    res.status(500).json({ message: "Unable to join queue right now" });
   }
-
-  // Join queue (FIFO by join_timestamp)
-  await pool.query(
-    'INSERT INTO queue_entries (driver_id, status) VALUES (?, "waiting")',
-    [driverId],
-  );
-  await pool.query(
-    "INSERT INTO cooldown_log (driver_id, last_join) VALUES (?, NOW()) ON DUPLICATE KEY UPDATE last_join = NOW()",
-    [driverId],
-  );
-
-  global.io.emit("queueUpdated"); // Real-time broadcast
-  res.json({ message: "Successfully joined the queue" });
 };
 
 const getQueuePosition = async (req, res) => {
-  const driverId = req.user.id;
-  const [queue] = await pool.query(
-    `SELECT id, driver_id, join_timestamp, status 
-     FROM queue_entries 
-     WHERE status IN ('waiting', 'loading') 
-     ORDER BY join_timestamp ASC`,
-  );
+  try {
+    const driverId = req.user.id;
+    const [queue] = await pool.query(
+      `SELECT id, driver_id, join_timestamp, status
+       FROM queue_entries
+       WHERE status IN ('waiting', 'loading')
+       ORDER BY join_timestamp ASC`,
+    );
 
-  const myEntry = queue.findIndex((entry) => entry.driver_id === driverId);
-  if (myEntry === -1)
-    return res.json({ position: null, status: "not_in_queue" });
+    const myEntry = queue.findIndex((entry) => entry.driver_id === driverId);
+    if (myEntry === -1) {
+      return res.json({ position: null, status: "not_in_queue" });
+    }
 
-  const position = myEntry + 1;
-  res.json({ position, status: queue[myEntry].status });
+    const position = myEntry + 1;
+    res.json({ position, status: queue[myEntry].status });
+  } catch (err) {
+    console.error("Get queue position error:", err);
+    res.status(500).json({ message: "Unable to fetch queue position" });
+  }
 };
 
 module.exports = { getProfile, makePayment, joinQueue, getQueuePosition };

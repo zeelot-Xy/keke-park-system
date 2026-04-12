@@ -1,10 +1,22 @@
-import { useState, useEffect } from "react";
-import axios from "axios";
-import io from "socket.io-client";
+import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { Truck, Users, Clock, LogOut } from "lucide-react";
-
-const socket = io("http://localhost:5000", { withCredentials: true });
+import {
+  BadgeCheck,
+  BusFront,
+  CheckCircle2,
+  Clock3,
+  LayoutDashboard,
+  LogOut,
+  ShieldCheck,
+  Timer,
+  UserCheck,
+  Users,
+  XCircle,
+} from "lucide-react";
+import api from "../lib/api";
+import { resolveAssetUrl } from "../lib/config";
+import { socket } from "../lib/socket";
+import BrandMark from "../components/BrandMark";
 
 export default function AdminDashboard({ setUser }) {
   const [activeTab, setActiveTab] = useState("queue");
@@ -14,6 +26,33 @@ export default function AdminDashboard({ setUser }) {
 
   const hasWaiting = queue.some((entry) => entry.status === "waiting");
   const hasLoading = queue.some((entry) => entry.status === "loading");
+
+  const fetchPending = async () => {
+    try {
+      const res = await api.get("/api/admin/pending-drivers");
+      setPending(res.data);
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Could not fetch pending drivers");
+    }
+  };
+
+  const fetchQueue = async () => {
+    try {
+      const res = await api.get("/api/admin/queue");
+      setQueue(res.data);
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Could not fetch live queue");
+    }
+  };
+
+  const fetchDrivers = async () => {
+    try {
+      const res = await api.get("/api/admin/drivers");
+      setDrivers(res.data);
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Could not fetch drivers");
+    }
+  };
 
   useEffect(() => {
     fetchPending();
@@ -27,40 +66,13 @@ export default function AdminDashboard({ setUser }) {
     };
   }, []);
 
-  const fetchPending = async () => {
-    try {
-      const res = await axios.get("/api/admin/pending-drivers");
-      setPending(res.data);
-    } catch (err) {
-      toast.error(
-        err.response?.data?.message || "Could not fetch pending drivers",
-      );
-    }
-  };
-
-  const fetchQueue = async () => {
-    try {
-      const res = await axios.get("/api/admin/queue");
-      setQueue(res.data);
-    } catch (err) {
-      toast.error(err.response?.data?.message || "Could not fetch live queue");
-    }
-  };
-
-  const fetchDrivers = async () => {
-    try {
-      const res = await axios.get("/api/admin/drivers");
-      setDrivers(res.data);
-    } catch (err) {
-      toast.error(err.response?.data?.message || "Could not fetch drivers");
-    }
-  };
   const approve = async (id) => {
     try {
-      await axios.post(`/api/admin/approve/${id}`);
-      toast.success("Driver approved ✅");
+      await api.post(`/api/admin/approve/${id}`);
+      toast.success("Driver approved");
       fetchPending();
       fetchQueue();
+      fetchDrivers();
     } catch (err) {
       toast.error(err.response?.data?.message || "Could not approve driver");
     }
@@ -68,9 +80,10 @@ export default function AdminDashboard({ setUser }) {
 
   const reject = async (id) => {
     try {
-      await axios.post(`/api/admin/reject/${id}`);
+      await api.post(`/api/admin/reject/${id}`);
       toast.success("Driver rejected");
       fetchPending();
+      fetchDrivers();
     } catch (err) {
       toast.error(err.response?.data?.message || "Could not reject driver");
     }
@@ -78,7 +91,7 @@ export default function AdminDashboard({ setUser }) {
 
   const loadFirst = async () => {
     try {
-      await axios.post("/api/admin/load-first");
+      await api.post("/api/admin/load-first");
       toast.success("First driver is now loading");
       fetchQueue();
     } catch (err) {
@@ -88,7 +101,7 @@ export default function AdminDashboard({ setUser }) {
 
   const completeLoading = async () => {
     try {
-      await axios.post("/api/admin/complete-loading");
+      await api.post("/api/admin/complete-loading");
       toast.success("Loading completed");
       fetchQueue();
     } catch (err) {
@@ -98,7 +111,7 @@ export default function AdminDashboard({ setUser }) {
 
   const logout = async () => {
     try {
-      await axios.post("/api/auth/logout");
+      await api.post("/api/auth/logout");
     } catch (err) {
       console.error("Logout error:", err);
     } finally {
@@ -107,258 +120,344 @@ export default function AdminDashboard({ setUser }) {
     }
   };
 
+  const stats = useMemo(
+    () => [
+      {
+        icon: BusFront,
+        label: "Active queue",
+        value: queue.length,
+        tone: "bg-[#fff5d6] text-[#8f6610]",
+      },
+      {
+        icon: UserCheck,
+        label: "Pending approvals",
+        value: pending.length,
+        tone: "bg-[#eef7f1] text-[#1e7a45]",
+      },
+      {
+        icon: Users,
+        label: "Registered drivers",
+        value: drivers.length,
+        tone: "bg-white/80 text-[#1d1a14]",
+      },
+    ],
+    [drivers.length, pending.length, queue.length],
+  );
+
+  const tabs = [
+    { id: "queue", label: "Live Queue", icon: LayoutDashboard },
+    { id: "pending", label: "Pending", icon: UserCheck },
+    { id: "drivers", label: "Drivers", icon: Users },
+  ];
+
   return (
-    <div className="min-h-screen bg-[#1A1A1A] text-white flex flex-col">
-      {/* Top Header */}
-      <div className="bg-black sticky top-0 z-50 border-b border-white/10">
-        <div className="max-w-5xl mx-auto px-5 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="text-4xl">🚕</div>
-            <div>
-              <h1 className="text-2xl font-bold text-[#FFED00]">Keke Park</h1>
-              <p className="text-xs text-gray-400 -mt-1">
-                Admin Control Center
-              </p>
+    <div className="page-shell min-h-screen px-4 py-4 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl space-y-5">
+        <header className="glass-panel-strong animate-rise-in rounded-[2rem] p-5 sm:p-6 lg:p-7">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-4">
+              <BrandMark compact />
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[#8d6508]">
+                  Admin Control
+                </p>
+                <h1 className="mt-2 text-3xl font-black text-[#1d1a14] sm:text-4xl">
+                  Park operations at a glance
+                </h1>
+                <p className="mt-3 max-w-3xl text-sm leading-7 text-[#6f6758] sm:text-base">
+                  Approve drivers, control loading order, and monitor the live
+                  queue from one responsive dashboard.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 self-start lg:self-center">
+              <span className="status-chip bg-[#eef7f1] text-[#1e7a45]">
+                <ShieldCheck size={14} />
+                Admin session
+              </span>
+              <button
+                onClick={logout}
+                className="inline-flex items-center justify-center gap-2 rounded-[1.15rem] border border-[#eadfca] bg-white px-4 py-3 text-sm font-semibold text-[#473f34] transition hover:bg-[#fff9eb]"
+              >
+                <LogOut size={17} />
+                Logout
+              </button>
             </div>
           </div>
 
-          <button
-            onClick={logout}
-            className="flex items-center gap-2 px-5 py-2.5 bg-red-600/80 hover:bg-red-700 rounded-2xl text-sm font-medium active:scale-95 transition">
-            <LogOut size={18} /> Logout
-          </button>
-        </div>
-      </div>
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            {stats.map((item) => {
+              const IconComponent = item.icon;
 
-      {/* Main Content */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Desktop Sidebar */}
-        <div className="hidden lg:flex w-72 bg-black/60 p-6 flex-col border-r border-white/10">
-          <nav className="space-y-3 flex-1">
-            <button
-              onClick={() => setActiveTab("queue")}
-              className={`w-full flex items-center gap-4 px-6 py-5 rounded-3xl text-left text-lg font-medium transition ${
-                activeTab === "queue"
-                  ? "bg-[#FFED00] text-black"
-                  : "hover:bg-white/10"
-              }`}>
-              <Truck size={26} /> Live Queue
-            </button>
-
-            <button
-              onClick={() => setActiveTab("pending")}
-              className={`w-full flex items-center gap-4 px-6 py-5 rounded-3xl text-left text-lg font-medium transition ${
-                activeTab === "pending"
-                  ? "bg-[#FFED00] text-black"
-                  : "hover:bg-white/10"
-              }`}>
-              <Users size={26} /> Pending Approvals
-            </button>
-
-            <button
-              onClick={() => setActiveTab("drivers")}
-              className={`w-full flex items-center gap-4 px-6 py-5 rounded-3xl text-left text-lg font-medium transition ${
-                activeTab === "drivers"
-                  ? "bg-[#FFED00] text-black"
-                  : "hover:bg-white/10"
-              }`}>
-              <Clock size={26} /> All Drivers
-            </button>
-          </nav>
-        </div>
-
-        {/* Content Area */}
-        <div className="flex-1 overflow-auto p-5 lg:p-10 pb-24">
-          {activeTab === "queue" && (
-            <div className="max-w-4xl mx-auto">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-                <h2 className="text-3xl font-bold">
-                  Live Queue ({queue.length})
-                </h2>
-
-                <div className="flex gap-3">
-                  <button
-                    onClick={loadFirst}
-                    disabled={!hasWaiting}
-                    className="bg-[#FFED00] hover:bg-yellow-300 disabled:bg-gray-500 disabled:text-gray-300 text-black font-bold px-8 py-4 rounded-3xl text-lg active:scale-95 transition flex-1 sm:flex-none">
-                    Load First Driver
-                  </button>
-                  <button
-                    onClick={completeLoading}
-                    disabled={!hasLoading}
-                    className="bg-[#008000] hover:bg-green-700 disabled:bg-gray-500 disabled:text-gray-300 font-bold px-8 py-4 rounded-3xl text-lg active:scale-95 transition flex-1 sm:flex-none">
-                    Complete Loading
-                  </button>
+              return (
+                <div
+                  key={item.label}
+                  className={`rounded-[1.5rem] border border-white/70 p-4 ${item.tone}`}
+                >
+                  <div className="mb-3 inline-flex rounded-2xl bg-[#1d1a14] p-2.5 text-[#f4c542]">
+                    <IconComponent size={18} />
+                  </div>
+                  <p className="text-sm opacity-75">{item.label}</p>
+                  <p className="mt-2 text-3xl font-black">{item.value}</p>
                 </div>
-              </div>
+              );
+            })}
+          </div>
+        </header>
 
-              <div className="space-y-5">
-                {queue.map((entry, index) => (
-                  <div
-                    key={entry.id}
-                    className="bg-white/10 p-6 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-6">
-                      <span className="text-5xl font-black text-[#FFED00] min-w-12.5">
-                        #{index + 1}
-                      </span>
-                      <div>
-                        <p className="text-xl font-bold">{entry.full_name}</p>
-                        <p className="text-[#FFED00] font-mono text-sm">
-                          {entry.park_id} • {entry.plate_number}
-                        </p>
+        <div className="grid gap-5 lg:grid-cols-[0.28fr_0.72fr]">
+          <aside className="glass-panel animate-rise-in rounded-[2rem] p-4 sm:p-5">
+            <nav className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+              {tabs.map((item) => {
+                const IconComponent = item.icon;
+
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveTab(item.id)}
+                    className={`flex items-center gap-3 rounded-[1.35rem] px-4 py-4 text-left text-sm font-semibold transition ${
+                      activeTab === item.id
+                        ? "bg-[#173c26] text-white shadow-[0_18px_36px_rgba(23,60,38,0.24)]"
+                        : "bg-white/60 text-[#4d4539] hover:bg-white"
+                    }`}
+                  >
+                    <IconComponent size={18} />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </nav>
+          </aside>
+
+          <main className="space-y-5">
+            {activeTab === "queue" && (
+              <section className="glass-panel animate-rise-in rounded-[2rem] p-5 sm:p-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm uppercase tracking-[0.25em] text-[#8d6508]">
+                      Live Queue
+                    </p>
+                    <h2 className="mt-2 text-3xl font-black text-[#1d1a14]">
+                      Dispatch sequence
+                    </h2>
+                  </div>
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <button
+                      onClick={loadFirst}
+                      disabled={!hasWaiting}
+                      className="rounded-[1.3rem] bg-[#f4c542] px-5 py-3.5 text-sm font-black text-[#1d1a14] transition hover:-translate-y-0.5 hover:bg-[#efbb2e] disabled:cursor-not-allowed disabled:bg-[#d8d2c4] disabled:text-[#7f7565]"
+                    >
+                      Load First Driver
+                    </button>
+                    <button
+                      onClick={completeLoading}
+                      disabled={!hasLoading}
+                      className="rounded-[1.3rem] bg-[#1b4d2f] px-5 py-3.5 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-[#143a24] disabled:cursor-not-allowed disabled:bg-[#91a393]"
+                    >
+                      Complete Loading
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-6 space-y-4">
+                  {queue.map((entry, index) => (
+                    <article
+                      key={entry.id}
+                      className="rounded-[1.6rem] border border-white/80 bg-white/70 p-4 sm:p-5"
+                    >
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="flex h-14 w-14 items-center justify-center rounded-[1.2rem] bg-[#173c26] text-xl font-black text-[#f4c542]">
+                            {index + 1}
+                          </div>
+                          <div>
+                            <h3 className="text-xl font-black text-[#1d1a14]">
+                              {entry.full_name}
+                            </h3>
+                            <p className="mt-1 text-sm text-[#6f6758]">
+                              {entry.park_id} - {entry.plate_number}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div
+                          className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-black ${
+                            entry.status === "loading"
+                              ? "bg-[#fff0db] text-[#b55f00]"
+                              : "bg-[#eef7f1] text-[#1e7a45]"
+                          }`}
+                        >
+                          {entry.status === "loading" ? (
+                            <Timer size={16} />
+                          ) : (
+                            <Clock3 size={16} />
+                          )}
+                          {entry.status.toUpperCase()}
+                        </div>
                       </div>
+                    </article>
+                  ))}
+
+                  {queue.length === 0 && (
+                    <div className="rounded-[1.6rem] bg-[#fbf8f1] p-10 text-center text-[#6f6758]">
+                      Queue is currently empty.
                     </div>
+                  )}
+                </div>
+              </section>
+            )}
 
-                    <div
-                      className={`px-8 py-3 rounded-2xl text-lg font-bold text-center ${
-                        entry.status === "loading"
-                          ? "bg-orange-500"
-                          : "bg-[#FFED00] text-black"
-                      }`}>
-                      {entry.status.toUpperCase()}
-                    </div>
-                  </div>
-                ))}
-
-                {queue.length === 0 && (
-                  <div className="text-center py-20 text-gray-400 text-2xl">
-                    Queue is currently empty
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {activeTab === "pending" && (
-            <div className="max-w-4xl mx-auto">
-              <h2 className="text-3xl font-bold mb-8">
-                Pending Driver Approvals
-              </h2>
-
-              <div className="space-y-6">
-                {pending.map((driver) => (
-                  <div
-                    key={driver.id}
-                    className="bg-white/10 p-6 rounded-3xl flex flex-col sm:flex-row gap-6 items-start">
-                    {driver.passport_photo && (
-                      <img
-                        src={`http://localhost:5000${driver.passport_photo}`}
-                        alt="Passport"
-                        className="w-28 h-28 sm:w-32 sm:h-32 object-cover rounded-2xl shrink-0"
-                      />
-                    )}
-
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-2xl font-bold mb-2">
-                        {driver.full_name}
-                      </h3>
-                      <p className="text-lg">📱 {driver.phone}</p>
-                      <p className="text-gray-300">
-                        License: {driver.license_number}
-                      </p>
-                      <p className="text-gray-300">
-                        Plate: {driver.plate_number}
-                      </p>
-                    </div>
-
-                    <div className="flex flex-col gap-3 w-full sm:w-auto">
-                      <button
-                        onClick={() => approve(driver.id)}
-                        className="bg-[#008000] hover:bg-green-700 py-4 px-10 rounded-3xl text-lg font-bold active:scale-95 transition">
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => reject(driver.id)}
-                        className="bg-red-600 hover:bg-red-700 py-4 px-10 rounded-3xl text-lg font-bold active:scale-95 transition">
-                        Reject
-                      </button>
-                    </div>
-                  </div>
-                ))}
-
-                {pending.length === 0 && (
-                  <div className="text-center py-20 text-gray-400 text-2xl">
-                    No pending approvals at the moment
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {activeTab === "drivers" && (
-            <div>
-              <h2 className="text-4xl font-bold mb-8">
-                All Registered Drivers
-              </h2>
-
-              <div className="grid gap-6">
-                {drivers.map((driver) => (
-                  <div
-                    key={driver.id}
-                    className="bg-white/10 p-8 rounded-3xl flex gap-8 items-start">
-                    {driver.passport_photo && (
-                      <img
-                        src={`http://localhost:5000${driver.passport_photo}`}
-                        alt="Passport"
-                        className="w-24 h-24 object-cover rounded-2xl"
-                      />
-                    )}
-
-                    <div className="flex-1">
-                      <h3 className="text-2xl font-bold">{driver.full_name}</h3>
-                      <p className="text-xl">📱 {driver.phone}</p>
-                      <p>Email: {driver.email || "N/A"}</p>
-                      <p>Park ID: {driver.park_id || "Not assigned"}</p>
-                      <p>License: {driver.license_number}</p>
-                      <p>Plate: {driver.plate_number}</p>
-                      <p
-                        className={`mt-2 font-bold ${
-                          driver.status === "approved"
-                            ? "text-green-400"
-                            : driver.status === "pending"
-                              ? "text-yellow-300"
-                              : "text-red-400"
-                        }`}>
-                        Status: {driver.status.toUpperCase()}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-
-                {drivers.length === 0 && (
-                  <p className="text-center text-2xl text-gray-400 py-20">
-                    No drivers found
+            {activeTab === "pending" && (
+              <section className="glass-panel animate-rise-in rounded-[2rem] p-5 sm:p-6">
+                <div>
+                  <p className="text-sm uppercase tracking-[0.25em] text-[#8d6508]">
+                    Pending Approvals
                   </p>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+                  <h2 className="mt-2 text-3xl font-black text-[#1d1a14]">
+                    Review incoming drivers
+                  </h2>
+                </div>
 
-      {/* Mobile Bottom Navigation */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-black border-t border-white/10 z-50">
-        <div className="flex items-center justify-around py-3">
-          <button
-            onClick={() => setActiveTab("queue")}
-            className={`flex flex-col items-center gap-1 p-3 ${activeTab === "queue" ? "text-[#FFED00]" : "text-gray-400"}`}>
-            <Truck size={24} />
-            <span className="text-xs">Queue</span>
-          </button>
+                <div className="mt-6 space-y-4">
+                  {pending.map((driver) => (
+                    <article
+                      key={driver.id}
+                      className="rounded-[1.6rem] border border-white/80 bg-white/70 p-4 sm:p-5"
+                    >
+                      <div className="flex flex-col gap-5 lg:flex-row lg:items-center">
+                        <div className="flex items-start gap-4">
+                          {driver.passport_photo ? (
+                            <img
+                              src={resolveAssetUrl(driver.passport_photo)}
+                              alt="Passport"
+                              className="h-24 w-24 rounded-[1.3rem] object-cover shadow-md"
+                            />
+                          ) : (
+                            <div className="flex h-24 w-24 items-center justify-center rounded-[1.3rem] bg-[#f2ecdf] text-[#1b4d2f]">
+                              <Users size={28} />
+                            </div>
+                          )}
 
-          <button
-            onClick={() => setActiveTab("pending")}
-            className={`flex flex-col items-center gap-1 p-3 ${activeTab === "pending" ? "text-[#FFED00]" : "text-gray-400"}`}>
-            <Users size={24} />
-            <span className="text-xs">Pending</span>
-          </button>
+                          <div className="space-y-1">
+                            <h3 className="text-xl font-black text-[#1d1a14]">
+                              {driver.full_name}
+                            </h3>
+                            <p className="text-sm text-[#6f6758]">
+                              {driver.phone}
+                            </p>
+                            <p className="text-sm text-[#6f6758]">
+                              Licence: {driver.license_number}
+                            </p>
+                            <p className="text-sm text-[#6f6758]">
+                              Plate: {driver.plate_number}
+                            </p>
+                          </div>
+                        </div>
 
-          <button
-            onClick={() => setActiveTab("drivers")}
-            className={`flex flex-col items-center gap-1 p-3 ${activeTab === "drivers" ? "text-[#FFED00]" : "text-gray-400"}`}>
-            <Clock size={24} />
-            <span className="text-xs">Drivers</span>
-          </button>
+                        <div className="flex gap-3 lg:ml-auto">
+                          <button
+                            onClick={() => approve(driver.id)}
+                            className="inline-flex items-center gap-2 rounded-[1.2rem] bg-[#1b4d2f] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#143a24]"
+                          >
+                            <CheckCircle2 size={16} />
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => reject(driver.id)}
+                            className="inline-flex items-center gap-2 rounded-[1.2rem] bg-[#c43f3f] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#aa3333]"
+                          >
+                            <XCircle size={16} />
+                            Reject
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+
+                  {pending.length === 0 && (
+                    <div className="rounded-[1.6rem] bg-[#fbf8f1] p-10 text-center text-[#6f6758]">
+                      No pending approvals at the moment.
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {activeTab === "drivers" && (
+              <section className="glass-panel animate-rise-in rounded-[2rem] p-5 sm:p-6">
+                <div>
+                  <p className="text-sm uppercase tracking-[0.25em] text-[#8d6508]">
+                    Driver Directory
+                  </p>
+                  <h2 className="mt-2 text-3xl font-black text-[#1d1a14]">
+                    Registered drivers
+                  </h2>
+                </div>
+
+                <div className="mt-6 grid gap-4 xl:grid-cols-2">
+                  {drivers.map((driver) => (
+                    <article
+                      key={driver.id}
+                      className="rounded-[1.6rem] border border-white/80 bg-white/70 p-5"
+                    >
+                      <div className="flex items-start gap-4">
+                        {driver.passport_photo ? (
+                          <img
+                            src={resolveAssetUrl(driver.passport_photo)}
+                            alt="Passport"
+                            className="h-20 w-20 rounded-[1.2rem] object-cover shadow-md"
+                          />
+                        ) : (
+                          <div className="flex h-20 w-20 items-center justify-center rounded-[1.2rem] bg-[#f2ecdf] text-[#1b4d2f]">
+                            <Users size={24} />
+                          </div>
+                        )}
+
+                        <div className="flex-1 space-y-1.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-xl font-black text-[#1d1a14]">
+                              {driver.full_name}
+                            </h3>
+                            <span
+                              className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${
+                                driver.status === "approved"
+                                  ? "bg-[#eef7f1] text-[#1e7a45]"
+                                  : driver.status === "pending"
+                                    ? "bg-[#fff5d6] text-[#91660e]"
+                                    : "bg-[#fff0f0] text-[#c43f3f]"
+                              }`}
+                            >
+                              {driver.status}
+                            </span>
+                          </div>
+                          <p className="text-sm text-[#6f6758]">{driver.phone}</p>
+                          <p className="text-sm text-[#6f6758]">
+                            Email: {driver.email || "N/A"}
+                          </p>
+                          <p className="text-sm text-[#6f6758]">
+                            Park ID: {driver.park_id || "Not assigned"}
+                          </p>
+                          <p className="text-sm text-[#6f6758]">
+                            Licence: {driver.license_number}
+                          </p>
+                          <p className="text-sm text-[#6f6758]">
+                            Plate: {driver.plate_number}
+                          </p>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+
+                  {drivers.length === 0 && (
+                    <div className="rounded-[1.6rem] bg-[#fbf8f1] p-10 text-center text-[#6f6758] xl:col-span-2">
+                      No drivers found.
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
+          </main>
         </div>
       </div>
     </div>

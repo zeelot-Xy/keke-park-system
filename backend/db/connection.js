@@ -1,15 +1,31 @@
-const mysql = require("mysql2/promise");
+const { Pool } = require("pg");
 const dotenv = require("dotenv");
+
 dotenv.config();
 
-const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+  throw new Error("DATABASE_URL is required");
+}
+
+const pool = new Pool({
+  connectionString,
+  ssl:
+    process.env.NODE_ENV === "production"
+      ? { rejectUnauthorized: false }
+      : false,
 });
 
-module.exports = pool;
+const query = async (text, params = []) => {
+  const result = await pool.query(text, params);
+  return [result.rows, result];
+};
+
+const end = async () => pool.end();
+
+module.exports = {
+  query,
+  end,
+  raw: pool,
+};

@@ -1,5 +1,4 @@
 const jwt = require("jsonwebtoken");
-const pool = require("../db/connection");
 
 const authenticate = async (req, res, next) => {
   const token = req.cookies?.accessToken;

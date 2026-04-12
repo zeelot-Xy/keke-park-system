@@ -9,10 +9,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import DriverDashboard from "./pages/DriverDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
-import axios from "axios";
-
-axios.defaults.withCredentials = true;
-axios.defaults.baseURL = "http://localhost:5000";
+import api from "./lib/api";
 
 function App() {
   const [user, setUser] = useState(null);
@@ -21,7 +18,7 @@ function App() {
   useEffect(() => {
     const checkUser = async () => {
       try {
-        const res = await axios.get("/api/auth/me");
+        const res = await api.get("/api/auth/me");
         setUser(res.data);
       } catch (err) {
         if (err.response?.status !== 401) {

@@ -1,7 +1,16 @@
 const pool = require("../db/connection");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { body, validationResult } = require("express-validator");
+const { validationResult } = require("express-validator");
+const {
+  normalizePhone,
+  normalizeLicenseNumber,
+  normalizePlateNumber,
+} = require("../utils/normalizers");
+const { setAuthCookies, clearAuthCookies } = require("../utils/cookies");
+const { uploadPassportPhoto } = require("../services/passportStorage");
+
+const isUniqueViolation = (error) => error?.code === "23505";
 
 const register = async (req, res) => {
   const errors = validationResult(req);
@@ -15,57 +24,33 @@ const register = async (req, res) => {
   let { full_name, phone, email, password, license_number, plate_number } =
     req.body;
 
-  // Normalize inputs
   full_name = full_name.trim();
-  if (phone.startsWith("0")) {
-    phone = "+234" + phone.slice(1);
-  }
-  // EMAIL
-  if (email) {
-    email = email.trim().toLowerCase();
+  phone = normalizePhone(phone);
+  email = email ? email.trim().toLowerCase() : null;
+  license_number = normalizeLicenseNumber(license_number);
+  plate_number = normalizePlateNumber(plate_number);
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({ message: "Invalid email format" });
-    }
-  } else {
-    email = null;
-  }
-
-  // Licence
-  license_number = license_number.toUpperCase().replace(/[^A-Z0-9]/g, "");
-
-  plate_number = plate_number.toUpperCase().replace(/[^A-Z0-9]/g, "");
-
-  // Reformat plate to ABC-123DE
-  if (plate_number.length >= 8) {
-    plate_number = `${plate_number.slice(0, 3)}-${plate_number.slice(
-      3,
-      6,
-    )}${plate_number.slice(6, 8)}`;
-  }
-  const passport_photo = req.file ? `/uploads/${req.file.filename}` : null;
-
-  if (!passport_photo) {
+  if (!req.file) {
     return res.status(400).json({ message: "Passport photo is required" });
   }
 
   const hashed = await bcrypt.hash(password, 12);
 
   try {
+    const uploadedPhoto = await uploadPassportPhoto(req.file);
+
     await pool.query(
-      `INSERT INTO users 
-       (full_name, phone, email, password, license_number, plate_number, passport_photo, role, status) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'driver', 'pending')`,
+      `INSERT INTO users
+       (full_name, phone, email, password, license_number, plate_number, passport_photo, role, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'driver', 'pending')`,
       [
         full_name,
         phone,
-        email || null,
+        email,
         hashed,
         license_number,
         plate_number,
-        passport_photo,
+        uploadedPhoto.publicUrl,
       ],
     );
 
@@ -74,7 +59,7 @@ const register = async (req, res) => {
       .json({ message: "Registration successful. Awaiting admin approval." });
   } catch (err) {
     console.error("Registration error:", err);
-    if (err.code === "ER_DUP_ENTRY") {
+    if (isUniqueViolation(err)) {
       return res.status(400).json({
         message:
           "Phone, license number or plate number already exists. Try different values.",
@@ -85,49 +70,60 @@ const register = async (req, res) => {
       .json({ message: "Server error during registration. Please try again." });
   }
 };
+
 const login = async (req, res) => {
-  const { phone, password } = req.body;
-  const [rows] = await pool.query("SELECT * FROM users WHERE phone = ?", [
-    phone,
-  ]);
-  const user = rows[0];
-  if (!user || !(await bcrypt.compare(password, user.password)))
-    return res.status(401).json({ message: "Invalid credentials" });
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      message: "Validation failed",
+      errors: errors.array(),
+    });
+  }
 
-  if (user.role === "driver" && user.status !== "approved")
-    return res.status(403).json({ message: "Account not approved yet" });
+  try {
+    const { phone, password } = req.body;
+    const normalizedPhone = normalizePhone(phone);
+    const [rows] = await pool.query("SELECT * FROM users WHERE phone = $1", [
+      normalizedPhone,
+    ]);
+    const user = rows[0];
 
-  const accessToken = jwt.sign(
-    { id: user.id, role: user.role },
-    process.env.JWT_SECRET,
-    { expiresIn: "15m" },
-  );
-  const refreshToken = jwt.sign(
-    { id: user.id, role: user.role },
-    process.env.JWT_REFRESH_SECRET,
-    { expiresIn: "7d" },
-  );
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
 
-  res.cookie("accessToken", accessToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-  });
-  res.cookie("refreshToken", refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-  });
+    if (user.role === "driver" && user.status !== "approved") {
+      return res.status(403).json({ message: "Account not approved yet" });
+    }
 
-  res.json({
-    message: "Logged in",
-    user: {
-      id: user.id,
-      role: user.role,
-      full_name: user.full_name,
-      park_id: user.park_id,
-    },
-  });
+    const accessToken = jwt.sign(
+      { id: user.id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "15m" },
+    );
+    const refreshToken = jwt.sign(
+      { id: user.id, role: user.role },
+      process.env.JWT_REFRESH_SECRET,
+      { expiresIn: "7d" },
+    );
+
+    setAuthCookies(res, accessToken, refreshToken);
+
+    res.json({
+      message: "Logged in",
+      user: {
+        id: user.id,
+        role: user.role,
+        full_name: user.full_name,
+        park_id: user.park_id,
+        phone: user.phone,
+        status: user.status,
+      },
+    });
+  } catch (err) {
+    console.error("Login error:", err);
+    res.status(500).json({ message: "Server error during login" });
+  }
 };
 
 const refresh = async (req, res) => {
@@ -148,16 +144,7 @@ const refresh = async (req, res) => {
       { expiresIn: "7d" },
     );
 
-    res.cookie("accessToken", accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-    });
-    res.cookie("refreshToken", newRefreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-    });
+    setAuthCookies(res, accessToken, newRefreshToken);
 
     res.json({ message: "Token refreshed" });
   } catch (err) {
@@ -166,8 +153,7 @@ const refresh = async (req, res) => {
 };
 
 const logout = (req, res) => {
-  res.clearCookie("accessToken");
-  res.clearCookie("refreshToken");
+  clearAuthCookies(res);
   res.json({ message: "Logged out" });
 };
 

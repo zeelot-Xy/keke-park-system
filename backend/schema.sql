@@ -1,44 +1,60 @@
-CREATE DATABASE IF NOT EXISTS keke_park_system CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE keke_park_system;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+    CREATE TYPE user_role AS ENUM ('driver', 'admin');
+  END IF;
 
--- EXACT schema from your spec
-CREATE TABLE users (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  role ENUM('driver', 'admin') NOT NULL DEFAULT 'driver',
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_status') THEN
+    CREATE TYPE user_status AS ENUM ('pending', 'approved', 'rejected');
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'payment_status') THEN
+    CREATE TYPE payment_status AS ENUM ('paid', 'pending');
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'queue_status') THEN
+    CREATE TYPE queue_status AS ENUM ('waiting', 'loading', 'completed');
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  role user_role NOT NULL DEFAULT 'driver',
   full_name VARCHAR(100) NOT NULL,
-  phone VARCHAR(20) UNIQUE NOT NULL,
+  phone VARCHAR(20) NOT NULL UNIQUE,
   email VARCHAR(100) UNIQUE,
   password VARCHAR(255) NOT NULL,
   park_id VARCHAR(20) UNIQUE,
   license_number VARCHAR(50) UNIQUE,
   plate_number VARCHAR(20) UNIQUE,
-  passport_photo VARCHAR(255),
-  status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  passport_photo TEXT,
+  status user_status NOT NULL DEFAULT 'pending',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE daily_payments (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  driver_id INT NOT NULL,
+CREATE TABLE IF NOT EXISTS daily_payments (
+  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  driver_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   payment_date DATE NOT NULL,
-  amount DECIMAL(10,2) DEFAULT 500.00,
-  status ENUM('paid', 'pending') DEFAULT 'pending',
-  paid_at TIMESTAMP NULL,
-  FOREIGN KEY (driver_id) REFERENCES users(id) ON DELETE CASCADE,
-  UNIQUE KEY unique_daily (driver_id, payment_date)
+  amount NUMERIC(10, 2) NOT NULL DEFAULT 500.00,
+  status payment_status NOT NULL DEFAULT 'pending',
+  paid_at TIMESTAMPTZ,
+  UNIQUE (driver_id, payment_date)
 );
 
-CREATE TABLE queue_entries (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  driver_id INT NOT NULL,
-  join_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  status ENUM('waiting', 'loading', 'completed') DEFAULT 'waiting',
-  FOREIGN KEY (driver_id) REFERENCES users(id) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS queue_entries (
+  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  driver_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  join_timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  status queue_status NOT NULL DEFAULT 'waiting'
 );
 
-CREATE TABLE cooldown_log (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  driver_id INT NOT NULL UNIQUE,  -- added for ON DUPLICATE KEY UPDATE
-  last_join TIMESTAMP NOT NULL,
-  FOREIGN KEY (driver_id) REFERENCES users(id)
+CREATE TABLE IF NOT EXISTS cooldown_log (
+  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  driver_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  last_join TIMESTAMPTZ NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_users_role_status ON users(role, status);
+CREATE INDEX IF NOT EXISTS idx_queue_entries_status_timestamp ON queue_entries(status, join_timestamp);
+CREATE INDEX IF NOT EXISTS idx_daily_payments_driver_date ON daily_payments(driver_id, payment_date);
