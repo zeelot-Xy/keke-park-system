@@ -1,0 +1,17 @@
+{
+  "name": "Keke Park System",
+  "short_name": "Keke Park",
+  "description": "Digital queue management for Nigerian transport parks with driver approvals, payments, and live queue tracking.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFF4B8",
+  "theme_color": "#F4C542",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "64x64",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
