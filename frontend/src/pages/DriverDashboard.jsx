@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import {
   BadgeCheck,
@@ -57,6 +57,7 @@ export default function DriverDashboard({ user, setUser }) {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [newPhoto, setNewPhoto] = useState(null);
+  const editSectionRef = useRef(null);
 
   const normalizePhone = (value) => {
     const trimmed = value.replace(/\s+/g, "");
@@ -186,6 +187,15 @@ export default function DriverDashboard({ user, setUser }) {
 
     return () => clearInterval(timer);
   }, [cooldown]);
+
+  useEffect(() => {
+    if (isEditingProfile && editSectionRef.current) {
+      editSectionRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }
+  }, [isEditingProfile]);
 
   const handlePayment = async () => {
     try {
@@ -399,8 +409,8 @@ export default function DriverDashboard({ user, setUser }) {
           </div>
         </header>
 
-        <section className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="glass-panel animate-rise-in rounded-[2rem] p-5 sm:p-6">
+        <section className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr] lg:items-start">
+          <div className="glass-panel animate-rise-in self-start rounded-[2rem] p-5 sm:p-6">
             <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
               <div className="relative">
                 <div className="absolute inset-0 rounded-[1.8rem] bg-[#f4c542]/25 blur-lg" />
@@ -473,11 +483,14 @@ export default function DriverDashboard({ user, setUser }) {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm uppercase tracking-[0.25em] text-[#8d6508]">
-                    Profile
+                    Profile Editing
                   </p>
                   <h3 className="mt-2 text-2xl font-black text-[#1d1a14]">
-                    Keep your details current
+                    Change your details anytime
                   </h3>
+                  <p className="mt-2 text-sm leading-6 text-[#6f6758]">
+                    Edit your contact info, password, vehicle data, or passport photo.
+                  </p>
                 </div>
                 <button
                   onClick={() => {
@@ -486,23 +499,11 @@ export default function DriverDashboard({ user, setUser }) {
                     }
                     setIsEditingProfile((current) => !current);
                   }}
-                  className="inline-flex items-center gap-2 rounded-[1.1rem] border border-[#eadfca] bg-white px-4 py-3 text-sm font-semibold text-[#473f34] transition hover:bg-[#fff9eb]"
+                  className="inline-flex items-center gap-2 rounded-[1.25rem] bg-linear-to-r from-[#f4c542] via-[#f0c12f] to-[#dca117] px-4 py-3 text-sm font-black text-[#1d1a14] shadow-[0_14px_28px_rgba(244,197,66,0.24)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(244,197,66,0.3)]"
                 >
                   {isEditingProfile ? <X size={16} /> : <PencilLine size={16} />}
                   {isEditingProfile ? "Cancel" : "Edit Profile"}
                 </button>
-              </div>
-
-              <div className="mt-5 grid gap-3 text-sm text-[#5f584a]">
-                <div className="rounded-[1.3rem] border border-white/70 bg-white/70 px-4 py-3">
-                  Phone: {profile?.phone}
-                </div>
-                <div className="rounded-[1.3rem] border border-white/70 bg-white/70 px-4 py-3">
-                  Email: {profile?.email || "Not added"}
-                </div>
-                <div className="rounded-[1.3rem] border border-white/70 bg-white/70 px-4 py-3">
-                  Licence: {profile?.license_number}
-                </div>
               </div>
             </div>
 
@@ -561,7 +562,10 @@ export default function DriverDashboard({ user, setUser }) {
         </section>
 
         {isEditingProfile && (
-          <section className="glass-panel-strong animate-rise-in rounded-[2rem] p-5 sm:p-6">
+          <section
+            ref={editSectionRef}
+            className="glass-panel-strong animate-rise-in rounded-[2rem] p-5 sm:p-6"
+          >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-sm uppercase tracking-[0.25em] text-[#8d6508]">
