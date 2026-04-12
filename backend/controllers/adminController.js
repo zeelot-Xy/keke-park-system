@@ -1,4 +1,5 @@
 const pool = require("../db/connection");
+const MINIMUM_LOADING_MINUTES = 2;
 
 const generateNextParkId = async () => {
   const [rows] = await pool.query(`
@@ -146,7 +147,9 @@ const loadFirstDriver = async (req, res) => {
     }
 
     await pool.query(
-      "UPDATE queue_entries SET status = 'loading' WHERE id = $1 AND status = 'waiting'",
+      `UPDATE queue_entries
+       SET status = 'loading', loading_started_at = NOW()
+       WHERE id = $1 AND status = 'waiting'`,
       [first[0].id],
     );
     global.io.emit("queueUpdated");
@@ -161,7 +164,7 @@ const loadFirstDriver = async (req, res) => {
 const completeLoading = async (req, res) => {
   try {
     const [loading] = await pool.query(
-      `SELECT id
+      `SELECT id, loading_started_at
        FROM queue_entries
        WHERE status = 'loading'
        ORDER BY join_timestamp ASC
@@ -171,8 +174,30 @@ const completeLoading = async (req, res) => {
       return res.status(400).json({ message: "No driver currently loading" });
     }
 
+    const loadingStart = loading[0].loading_started_at
+      ? new Date(loading[0].loading_started_at)
+      : null;
+
+    if (loadingStart) {
+      const minutesSinceLoadingStarted =
+        (Date.now() - loadingStart.getTime()) / (1000 * 60);
+
+      if (minutesSinceLoadingStarted < MINIMUM_LOADING_MINUTES) {
+        const waitMin = Math.ceil(
+          MINIMUM_LOADING_MINUTES - minutesSinceLoadingStarted,
+        );
+
+        return res.status(400).json({
+          message: `Loading must stay active for at least ${MINIMUM_LOADING_MINUTES} minutes. Please wait ${waitMin} more minute${waitMin === 1 ? "" : "s"}.`,
+          remainingMinutes: waitMin,
+        });
+      }
+    }
+
     await pool.query(
-      "UPDATE queue_entries SET status = 'completed' WHERE id = $1 AND status = 'loading'",
+      `UPDATE queue_entries
+       SET status = 'completed', loading_started_at = NULL
+       WHERE id = $1 AND status = 'loading'`,
       [loading[0].id],
     );
     global.io.emit("queueUpdated");

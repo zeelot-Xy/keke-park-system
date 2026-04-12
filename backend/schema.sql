@@ -46,8 +46,12 @@ CREATE TABLE IF NOT EXISTS queue_entries (
   id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   driver_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   join_timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  status queue_status NOT NULL DEFAULT 'waiting'
+  status queue_status NOT NULL DEFAULT 'waiting',
+  loading_started_at TIMESTAMPTZ
 );
+
+ALTER TABLE queue_entries
+ADD COLUMN IF NOT EXISTS loading_started_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS cooldown_log (
   id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

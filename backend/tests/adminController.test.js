@@ -4,7 +4,10 @@ jest.mock("../db/connection", () => ({
 
 const pool = require("../db/connection");
 const { createResponse } = require("./helpers/httpMocks");
-const { approveDriver } = require("../controllers/adminController");
+const {
+  approveDriver,
+  completeLoading,
+} = require("../controllers/adminController");
 
 describe("adminController", () => {
   beforeEach(() => {
@@ -51,5 +54,25 @@ describe("adminController", () => {
 
     expect(res.statusCode).toBe(400);
     expect(res.payload.message).toBe("Only pending drivers can be approved");
+  });
+
+  test("completeLoading blocks completion before 2 minutes have passed", async () => {
+    pool.query.mockResolvedValueOnce([
+      [
+        {
+          id: 7,
+          loading_started_at: new Date(Date.now() - 30 * 1000).toISOString(),
+        },
+      ],
+    ]);
+
+    const req = {};
+    const res = createResponse();
+
+    await completeLoading(req, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.payload.remainingMinutes).toBeGreaterThan(0);
+    expect(res.payload.message).toMatch(/at least 2 minutes/i);
   });
 });

@@ -11,6 +11,7 @@ const { uploadPassportPhoto } = require("../services/passportStorage");
 
 const isUniqueViolation = (error) => error?.code === "23505";
 const isStorageFailure = (error) => error?.code === "PASSPORT_UPLOAD_FAILED";
+const QUEUE_COOLDOWN_MINUTES = 40;
 
 const getProfile = async (req, res) => {
   try {
@@ -189,8 +190,8 @@ const joinQueue = async (req, res) => {
     if (cooldownRows.length) {
       const lastJoin = new Date(cooldownRows[0].last_join);
       const minutesSince = (Date.now() - lastJoin.getTime()) / (1000 * 60);
-      if (minutesSince < 220) {
-        const waitMin = Math.ceil(220 - minutesSince);
+      if (minutesSince < QUEUE_COOLDOWN_MINUTES) {
+        const waitMin = Math.ceil(QUEUE_COOLDOWN_MINUTES - minutesSince);
         return res.status(400).json({
           message: `Cooldown active. Please wait ${waitMin} minutes before re-joining.`,
           cooldownMinutes: waitMin,

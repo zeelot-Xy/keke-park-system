@@ -50,6 +50,7 @@ describe("driverController", () => {
 
     expect(res.statusCode).toBe(400);
     expect(res.payload.cooldownMinutes).toBeGreaterThan(0);
+    expect(res.payload.cooldownMinutes).toBeLessThanOrEqual(40);
     expect(res.payload.message).toMatch(/Cooldown active/i);
   });
 
