@@ -6,6 +6,7 @@ import {
   CheckSquare,
   Clock,
   FileText,
+  KeyRound,
   LogOut,
   Phone,
   Play,
@@ -22,6 +23,7 @@ import { socket } from "../lib/socket";
 import EmptyState from "../components/EmptyState";
 import InlineNotice from "../components/InlineNotice";
 import DashboardSkeleton from "../components/DashboardSkeleton";
+import PasswordField from "../components/PasswordField";
 
 const motionProps = (delay = 0) => ({
   initial: { opacity: 0, y: 20 },
@@ -36,6 +38,12 @@ export default function AdminDashboard({ setUser }) {
   const [drivers, setDrivers] = useState([]);
   const [bootstrapping, setBootstrapping] = useState(true);
   const [notice, setNotice] = useState(null);
+  const [deleteAction, setDeleteAction] = useState({
+    driverId: null,
+    mode: null,
+    password: "",
+    loading: false,
+  });
 
   const hasWaiting = queue.some((entry) => entry.status === "waiting");
   const hasLoading = queue.some((entry) => entry.status === "loading");
@@ -182,6 +190,90 @@ export default function AdminDashboard({ setUser }) {
     { id: "pending", label: "Pending", mobile: "Pending", icon: Clock },
     { id: "drivers", label: "Drivers", mobile: "Drivers", icon: UserCheck },
   ];
+
+  const formatDeletionDate = (value) => {
+    if (!value) return "";
+    return new Intl.DateTimeFormat("en-NG", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(value));
+  };
+
+  const openDeleteAction = (driverId, mode) => {
+    setDeleteAction({
+      driverId,
+      mode,
+      password: "",
+      loading: false,
+    });
+  };
+
+  const closeDeleteAction = () => {
+    setDeleteAction({
+      driverId: null,
+      mode: null,
+      password: "",
+      loading: false,
+    });
+  };
+
+  const handleDeletePasswordChange = (event) => {
+    setDeleteAction((current) => ({
+      ...current,
+      password: event.target.value,
+    }));
+  };
+
+  const submitDeleteAction = async (driver) => {
+    if (!deleteAction.password.trim()) {
+      toast.error("Enter your admin password to continue.");
+      return;
+    }
+
+    const route =
+      deleteAction.mode === "confirm"
+        ? `/api/admin/drivers/${driver.id}/confirm-delete`
+        : `/api/admin/drivers/${driver.id}/request-delete`;
+
+    setDeleteAction((current) => ({ ...current, loading: true }));
+
+    try {
+      const res = await api.post(route, { password: deleteAction.password });
+      setNotice({
+        type: deleteAction.mode === "confirm" ? "success" : "warning",
+        message: res.data.message,
+      });
+      closeDeleteAction();
+      fetchDrivers();
+      fetchQueue();
+      fetchPending();
+      toast.success(
+        deleteAction.mode === "confirm"
+          ? "Driver deleted"
+          : "Deletion scheduled",
+      );
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Could not complete delete action");
+      setDeleteAction((current) => ({ ...current, loading: false }));
+    }
+  };
+
+  const cancelScheduledDeletion = async (driver) => {
+    try {
+      const res = await api.post(`/api/admin/drivers/${driver.id}/cancel-delete`);
+      setNotice({
+        type: "info",
+        message: res.data.message,
+      });
+      if (deleteAction.driverId === driver.id) {
+        closeDeleteAction();
+      }
+      fetchDrivers();
+      toast.success("Deletion cancelled");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Could not cancel scheduled deletion");
+    }
+  };
 
   if (bootstrapping) {
     return <DashboardSkeleton tone="dark" />;
@@ -538,6 +630,13 @@ export default function AdminDashboard({ setUser }) {
                       .map((part) => part[0])
                       .join("")
                       .toUpperCase();
+                    const isDeletePanelOpen = deleteAction.driverId === driver.id;
+                    const canScheduleDelete =
+                      driver.status === "approved" && !driver.deletion_state;
+                    const canConfirmDelete =
+                      driver.deletion_state === "awaiting_confirmation";
+                    const showDeletionCountdown =
+                      driver.deletion_state === "scheduled";
 
                     return (
                       <Motion.div
@@ -596,23 +695,126 @@ export default function AdminDashboard({ setUser }) {
                           </div>
 
                           <div className="flex-shrink-0">
-                            {driver.status === "approved" ? (
-                              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#1E7A45] px-3 py-1.5 text-xs font-bold text-white">
-                                <div className="h-2 w-2 rounded-full bg-white" />
-                                Active
-                              </span>
-                            ) : driver.status === "pending" ? (
-                              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#DCA117] px-3 py-1.5 text-xs font-bold text-white">
-                                <Clock className="h-3 w-3" />
-                                Pending
+                            <div className="flex flex-wrap items-center justify-end gap-2">
+                              {driver.status === "approved" ? (
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#1E7A45] px-3 py-1.5 text-xs font-bold text-white">
+                                  <div className="h-2 w-2 rounded-full bg-white" />
+                                  Active
+                                </span>
+                              ) : driver.status === "pending" ? (
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#DCA117] px-3 py-1.5 text-xs font-bold text-white">
+                                  <Clock className="h-3 w-3" />
+                                  Pending
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#D8D0BD] px-3 py-1.5 text-xs font-bold text-[#6F6758]">
+                                  Inactive
+                                </span>
+                              )}
+
+                              {canScheduleDelete ? (
+                                <button
+                                  type="button"
+                                  onClick={() => openDeleteAction(driver.id, "request")}
+                                  className="interactive-button rounded-full border border-[#C43F3F]/20 bg-[#FFF1F1] px-3 py-1.5 text-xs font-bold text-[#9C3535] transition hover:bg-[#ffe4e4]"
+                                >
+                                  Schedule Delete
+                                </button>
+                              ) : null}
+
+                              {showDeletionCountdown ? (
+                                <button
+                                  type="button"
+                                  onClick={() => cancelScheduledDeletion(driver)}
+                                  className="interactive-button rounded-full border border-[#DCA117]/20 bg-[#FFF5D6] px-3 py-1.5 text-xs font-bold text-[#8D6508] transition hover:bg-[#ffefbe]"
+                                >
+                                  Cancel Delete
+                                </button>
+                              ) : null}
+
+                              {canConfirmDelete ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => openDeleteAction(driver.id, "confirm")}
+                                    className="interactive-button rounded-full border border-[#C43F3F]/20 bg-[#FFF1F1] px-3 py-1.5 text-xs font-bold text-[#9C3535] transition hover:bg-[#ffe4e4]"
+                                  >
+                                    Confirm Delete
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => cancelScheduledDeletion(driver)}
+                                    className="interactive-button rounded-full border border-[#DCA117]/20 bg-[#FFF5D6] px-3 py-1.5 text-xs font-bold text-[#8D6508] transition hover:bg-[#ffefbe]"
+                                  >
+                                    Cancel Delete
+                                  </button>
+                                </>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
+
+                        {driver.deletion_state ? (
+                          <div className="mt-4 rounded-[1.2rem] border border-[#DCA117]/20 bg-[#FFF7E2] px-4 py-3 text-sm text-[#7B5B10]">
+                            {driver.deletion_state === "scheduled" ? (
+                              <span>
+                                Deletion scheduled. Final confirmation becomes available on{" "}
+                                <strong>{formatDeletionDate(driver.deletion_eligible_at)}</strong>.
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#D8D0BD] px-3 py-1.5 text-xs font-bold text-[#6F6758]">
-                                Inactive
+                              <span>
+                                Grace period completed. You can now confirm deletion or cancel the request.
                               </span>
                             )}
                           </div>
-                        </div>
+                        ) : null}
+
+                        {isDeletePanelOpen ? (
+                          <div className="mt-4 rounded-[1.4rem] border border-[#eadfca] bg-[#FFFBEA] p-4">
+                            <p className="text-sm font-bold text-[#1D1A14]">
+                              {deleteAction.mode === "confirm"
+                                ? `Confirm permanent deletion for ${driver.full_name}`
+                                : `Schedule ${driver.full_name} for deletion`}
+                            </p>
+                            <p className="mt-2 text-sm leading-6 text-[#6F6758]">
+                              {deleteAction.mode === "confirm"
+                                ? "Enter your admin password to permanently remove this driver from the system database."
+                                : "Enter your admin password to start the 3-day deletion grace period for this driver."}
+                            </p>
+
+                            <div className="mt-4">
+                              <PasswordField
+                                label="Admin password"
+                                value={deleteAction.password}
+                                onChange={handleDeletePasswordChange}
+                                placeholder="Enter current admin password"
+                                icon={KeyRound}
+                              />
+                            </div>
+
+                            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                              <button
+                                type="button"
+                                onClick={() => submitDeleteAction(driver)}
+                                disabled={deleteAction.loading}
+                                className="interactive-button rounded-xl bg-[#C43F3F] px-4 py-3 font-bold text-white transition hover:bg-[#a83434] disabled:cursor-not-allowed disabled:opacity-70"
+                              >
+                                {deleteAction.loading
+                                  ? "Processing..."
+                                  : deleteAction.mode === "confirm"
+                                    ? "Delete Driver Permanently"
+                                    : "Start 3-Day Grace Period"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={closeDeleteAction}
+                                className="interactive-button rounded-xl border border-[#D8D0BD] bg-white px-4 py-3 font-bold text-[#6F6758] transition hover:bg-[#fff8ea]"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
                       </Motion.div>
                     );
                   })

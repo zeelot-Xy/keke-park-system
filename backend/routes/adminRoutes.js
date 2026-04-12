@@ -9,6 +9,9 @@ const {
   loadFirstDriver,
   completeLoading,
   getAllDrivers,
+  requestDriverDeletion,
+  confirmDriverDeletion,
+  cancelDriverDeletion,
 } = require("../controllers/adminController");
 
 router.get(
@@ -18,6 +21,24 @@ router.get(
   getPendingDrivers,
 );
 router.get("/drivers", authenticate, authorizeRole(["admin"]), getAllDrivers);
+router.post(
+  "/drivers/:id/request-delete",
+  authenticate,
+  authorizeRole(["admin"]),
+  requestDriverDeletion,
+);
+router.post(
+  "/drivers/:id/confirm-delete",
+  authenticate,
+  authorizeRole(["admin"]),
+  confirmDriverDeletion,
+);
+router.post(
+  "/drivers/:id/cancel-delete",
+  authenticate,
+  authorizeRole(["admin"]),
+  cancelDriverDeletion,
+);
 router.post(
   "/approve/:id",
   authenticate,

@@ -1,5 +1,27 @@
 const pool = require("../db/connection");
+const bcrypt = require("bcryptjs");
 const MINIMUM_LOADING_MINUTES = 2;
+const DELETE_GRACE_DAYS = 3;
+
+const getDeletionState = (driver) => {
+  if (!driver?.deletion_requested_at || !driver?.deletion_eligible_at) return null;
+
+  return new Date(driver.deletion_eligible_at) > new Date()
+    ? "scheduled"
+    : "awaiting_confirmation";
+};
+
+const verifyAdminPassword = async (adminId, password) => {
+  if (!password) return false;
+
+  const [rows] = await pool.query(
+    "SELECT password FROM users WHERE id = $1 AND role = 'admin' LIMIT 1",
+    [adminId],
+  );
+
+  if (!rows.length) return false;
+  return bcrypt.compare(password, rows[0].password);
+};
 
 const generateNextParkId = async () => {
   const [rows] = await pool.query(`
@@ -111,15 +133,157 @@ const getLiveQueue = async (req, res) => {
 const getAllDrivers = async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT id, full_name, phone, email, park_id, license_number, plate_number, passport_photo, status, created_at
+      `SELECT id, full_name, phone, email, park_id, license_number, plate_number, passport_photo, status,
+              deletion_requested_at, deletion_eligible_at, created_at
        FROM users
        WHERE role = 'driver'
        ORDER BY created_at DESC`,
     );
 
-    res.json(rows);
+    res.json(
+      rows.map((driver) => ({
+        ...driver,
+        deletion_state: getDeletionState(driver),
+      })),
+    );
   } catch (err) {
     console.error("Get all drivers error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+const requestDriverDeletion = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+
+    const validPassword = await verifyAdminPassword(req.user.id, password);
+    if (!validPassword) {
+      return res.status(401).json({ message: "Admin password is incorrect" });
+    }
+
+    const [rows] = await pool.query(
+      `SELECT id, role, full_name, deletion_requested_at, deletion_eligible_at
+       FROM users
+       WHERE id = $1
+       LIMIT 1`,
+      [id],
+    );
+
+    if (!rows.length || rows[0].role !== "driver") {
+      return res.status(404).json({ message: "Driver not found" });
+    }
+
+    if (rows[0].deletion_requested_at) {
+      return res.status(400).json({ message: "Deletion is already scheduled for this driver" });
+    }
+
+    const [updatedRows] = await pool.query(
+      `UPDATE users
+       SET deletion_requested_at = NOW(),
+           deletion_eligible_at = NOW() + INTERVAL '3 days'
+       WHERE id = $1 AND role = 'driver'
+       RETURNING id, full_name, deletion_requested_at, deletion_eligible_at`,
+      [id],
+    );
+
+    res.json({
+      message: "Driver deletion scheduled. Confirm after the 3-day grace period or cancel the request.",
+      driver: {
+        ...updatedRows[0],
+        deletion_state: getDeletionState(updatedRows[0]),
+      },
+      graceDays: DELETE_GRACE_DAYS,
+    });
+  } catch (err) {
+    console.error("Request driver deletion error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+const confirmDriverDeletion = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+
+    const validPassword = await verifyAdminPassword(req.user.id, password);
+    if (!validPassword) {
+      return res.status(401).json({ message: "Admin password is incorrect" });
+    }
+
+    const [rows] = await pool.query(
+      `SELECT id, role, full_name, deletion_requested_at, deletion_eligible_at
+       FROM users
+       WHERE id = $1
+       LIMIT 1`,
+      [id],
+    );
+
+    if (!rows.length || rows[0].role !== "driver") {
+      return res.status(404).json({ message: "Driver not found" });
+    }
+
+    if (!rows[0].deletion_requested_at || !rows[0].deletion_eligible_at) {
+      return res.status(400).json({ message: "No deletion request exists for this driver" });
+    }
+
+    const eligibleAt = new Date(rows[0].deletion_eligible_at);
+    if (eligibleAt > new Date()) {
+      const remainingMs = eligibleAt.getTime() - Date.now();
+      const remainingDays = Math.ceil(remainingMs / (1000 * 60 * 60 * 24));
+      return res.status(400).json({
+        message: `Deletion is still in its grace period. Wait ${remainingDays} more day${remainingDays === 1 ? "" : "s"} or cancel the request.`,
+        remainingDays,
+        eligibleAt: rows[0].deletion_eligible_at,
+      });
+    }
+
+    const [deletedRows, result] = await pool.query(
+      `DELETE FROM users
+       WHERE id = $1 AND role = 'driver'
+       RETURNING id, full_name`,
+      [id],
+    );
+
+    if (!result.rowCount) {
+      return res.status(404).json({ message: "Driver not found" });
+    }
+
+    global.io.emit("queueUpdated");
+    res.json({
+      message: "Driver deleted permanently from the system",
+      driver: deletedRows[0],
+    });
+  } catch (err) {
+    console.error("Confirm driver deletion error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+const cancelDriverDeletion = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [rows, result] = await pool.query(
+      `UPDATE users
+       SET deletion_requested_at = NULL,
+           deletion_eligible_at = NULL
+       WHERE id = $1
+         AND role = 'driver'
+         AND deletion_requested_at IS NOT NULL
+       RETURNING id, full_name`,
+      [id],
+    );
+
+    if (!result.rowCount) {
+      return res.status(404).json({ message: "No scheduled deletion found for this driver" });
+    }
+
+    res.json({
+      message: "Scheduled deletion cancelled",
+      driver: rows[0],
+    });
+  } catch (err) {
+    console.error("Cancel driver deletion error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -217,4 +381,7 @@ module.exports = {
   loadFirstDriver,
   completeLoading,
   getAllDrivers,
+  requestDriverDeletion,
+  confirmDriverDeletion,
+  cancelDriverDeletion,
 };

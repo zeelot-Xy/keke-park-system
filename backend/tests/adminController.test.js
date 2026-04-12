@@ -1,12 +1,19 @@
 jest.mock("../db/connection", () => ({
   query: jest.fn(),
 }));
+jest.mock("bcryptjs", () => ({
+  compare: jest.fn(),
+}));
 
 const pool = require("../db/connection");
+const bcrypt = require("bcryptjs");
 const { createResponse } = require("./helpers/httpMocks");
 const {
   approveDriver,
   completeLoading,
+  requestDriverDeletion,
+  confirmDriverDeletion,
+  cancelDriverDeletion,
 } = require("../controllers/adminController");
 
 describe("adminController", () => {
@@ -74,5 +81,84 @@ describe("adminController", () => {
     expect(res.statusCode).toBe(400);
     expect(res.payload.remainingMinutes).toBeGreaterThan(0);
     expect(res.payload.message).toMatch(/at least 2 minutes/i);
+  });
+
+  test("requestDriverDeletion verifies admin password and schedules deletion", async () => {
+    bcrypt.compare.mockResolvedValueOnce(true);
+    pool.query
+      .mockResolvedValueOnce([[{ password: "hashed-admin" }]])
+      .mockResolvedValueOnce([
+        [{ id: 5, role: "driver", full_name: "Test Driver", deletion_requested_at: null, deletion_eligible_at: null }],
+      ])
+      .mockResolvedValueOnce([
+        [
+          {
+            id: 5,
+            full_name: "Test Driver",
+            deletion_requested_at: "2026-04-12T08:00:00.000Z",
+            deletion_eligible_at: "2026-04-15T08:00:00.000Z",
+          },
+        ],
+      ]);
+
+    const req = {
+      params: { id: "5" },
+      body: { password: "admin123" },
+      user: { id: 1, role: "admin" },
+    };
+    const res = createResponse();
+
+    await requestDriverDeletion(req, res);
+
+    expect(bcrypt.compare).toHaveBeenCalledWith("admin123", "hashed-admin");
+    expect(res.statusCode).toBe(200);
+    expect(res.payload.graceDays).toBe(3);
+    expect(res.payload.driver.deletion_state).toBe("scheduled");
+  });
+
+  test("confirmDriverDeletion blocks deletion before grace period ends", async () => {
+    const futureDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
+    bcrypt.compare.mockResolvedValueOnce(true);
+    pool.query
+      .mockResolvedValueOnce([[{ password: "hashed-admin" }]])
+      .mockResolvedValueOnce([
+        [
+          {
+            id: 5,
+            role: "driver",
+            full_name: "Test Driver",
+            deletion_requested_at: new Date().toISOString(),
+            deletion_eligible_at: futureDate,
+          },
+        ],
+      ]);
+
+    const req = {
+      params: { id: "5" },
+      body: { password: "admin123" },
+      user: { id: 1, role: "admin" },
+    };
+    const res = createResponse();
+
+    await confirmDriverDeletion(req, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.payload.message).toMatch(/grace period/i);
+    expect(res.payload.remainingDays).toBeGreaterThan(0);
+  });
+
+  test("cancelDriverDeletion clears scheduled deletion metadata", async () => {
+    pool.query.mockResolvedValueOnce([
+      [{ id: 5, full_name: "Test Driver" }],
+      { rowCount: 1 },
+    ]);
+
+    const req = { params: { id: "5" } };
+    const res = createResponse();
+
+    await cancelDriverDeletion(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.payload.message).toMatch(/cancelled/i);
   });
 });

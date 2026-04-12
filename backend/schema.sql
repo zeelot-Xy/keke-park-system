@@ -29,8 +29,16 @@ CREATE TABLE IF NOT EXISTS users (
   plate_number VARCHAR(20) UNIQUE,
   passport_photo TEXT,
   status user_status NOT NULL DEFAULT 'pending',
+  deletion_requested_at TIMESTAMPTZ,
+  deletion_eligible_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS deletion_requested_at TIMESTAMPTZ;
+
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS deletion_eligible_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS daily_payments (
   id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
