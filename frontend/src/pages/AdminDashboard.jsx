@@ -325,7 +325,7 @@ export default function AdminDashboard({ setUser }) {
                 >
                   <div className="flex items-center gap-3">
                     <div
-                      className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg ${item.iconClass}`}
+                      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg ${item.iconClass}`}
                     >
                       <IconComponent className="h-6 w-6" />
                     </div>
@@ -439,7 +439,7 @@ export default function AdminDashboard({ setUser }) {
                     >
                       <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
                         <div
-                          className={`flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl ${
+                          className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl ${
                             index === 0
                               ? "bg-[#1B4D2F] text-white shadow-lg"
                               : "bg-[#F8EBC7] text-[#1D1A14]"
@@ -477,7 +477,7 @@ export default function AdminDashboard({ setUser }) {
                           </div>
                         </div>
 
-                        <div className="flex-shrink-0">
+                        <div className="shrink-0">
                           {entry.status === "loading" ? (
                             <span className="inline-flex items-center gap-2 rounded-lg bg-[#1B4D2F] px-4 py-2 text-sm font-bold text-white shadow-md">
                               <div className="h-2 w-2 rounded-full bg-[#F4C542] animate-pulse" />
@@ -558,19 +558,19 @@ export default function AdminDashboard({ setUser }) {
 
                     <div className="mb-5 space-y-3">
                       <div className="flex items-center gap-3">
-                        <Phone className="h-4 w-4 flex-shrink-0 text-[#6F6758]" />
+                        <Phone className="h-4 w-4 hrink-0 text-[#6F6758]" />
                         <span className="text-sm text-[#1D1A14]">
                           {driver.phone}
                         </span>
                       </div>
                       <div className="flex items-center gap-3">
-                        <FileText className="h-4 w-4 flex-shrink-0 text-[#6F6758]" />
+                        <FileText className="h-4 w-4 shrink-0 text-[#6F6758]" />
                         <span className="font-mono text-sm text-[#1D1A14]">
                           {driver.license_number}
                         </span>
                       </div>
                       <div className="flex items-center gap-3">
-                        <Car className="h-4 w-4 flex-shrink-0 text-[#6F6758]" />
+                        <Car className="h-4 w-4 shrink-0 text-[#6F6758]" />
                         <span className="font-mono text-sm text-[#1D1A14]">
                           {driver.plate_number}
                         </span>
@@ -654,7 +654,7 @@ export default function AdminDashboard({ setUser }) {
                               className="h-12 w-12 rounded-xl object-cover"
                             />
                           ) : (
-                            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-[#F4C542] to-[#DCA117] text-lg font-extrabold text-[#14532D]">
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-[#F4C542] to-[#DCA117] text-lg font-extrabold text-[#14532D]">
                               {initials || "DR"}
                             </div>
                           )}
@@ -694,7 +694,7 @@ export default function AdminDashboard({ setUser }) {
                             </div>
                           </div>
 
-                          <div className="flex-shrink-0">
+                          <div className="shrink-0">
                             <div className="flex flex-wrap items-center justify-end gap-2">
                               {driver.status === "approved" ? (
                                 <span className="inline-flex items-center gap-1.5 rounded-full bg-[#1E7A45] px-3 py-1.5 text-xs font-bold text-white">

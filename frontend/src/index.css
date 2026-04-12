@@ -153,23 +153,16 @@ textarea {
 }
 
 .tab-pill {
-  position: relative;
-  overflow: hidden;
+  opacity: 0.92;
+  transition:
+    opacity 180ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
 }
 
-.tab-pill::after {
-  content: "";
-  position: absolute;
-  inset: auto 18% 7px;
-  height: 3px;
-  border-radius: 999px;
-  background: rgba(20, 83, 45, 0.18);
-  opacity: 0;
-  transition: opacity 180ms ease;
-}
-
-.tab-pill:hover::after,
-.tab-pill[data-active="true"]::after {
+.tab-pill:hover,
+.tab-pill[data-active="true"] {
   opacity: 1;
 }
 
