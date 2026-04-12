@@ -11,6 +11,7 @@ const { setAuthCookies, clearAuthCookies } = require("../utils/cookies");
 const { uploadPassportPhoto } = require("../services/passportStorage");
 
 const isUniqueViolation = (error) => error?.code === "23505";
+const isStorageFailure = (error) => error?.code === "PASSPORT_UPLOAD_FAILED";
 
 const register = async (req, res) => {
   const errors = validationResult(req);
@@ -63,6 +64,12 @@ const register = async (req, res) => {
       return res.status(400).json({
         message:
           "Phone, license number or plate number already exists. Try different values.",
+      });
+    }
+    if (isStorageFailure(err)) {
+      return res.status(500).json({
+        message:
+          "Passport upload failed on the server. Please try again, and if it continues, check the storage bucket configuration.",
       });
     }
     res

@@ -33,8 +33,10 @@ export default function Login({ setUser }) {
     <div className="page-shell min-h-screen px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto grid min-h-[calc(100vh-3rem)] max-w-6xl items-center gap-6 lg:grid-cols-[1.05fr_0.95fr]">
         <section className="glass-panel relative hidden overflow-hidden rounded-[2rem] p-8 lg:block lg:p-10 animate-rise-in">
+          <div className="absolute inset-x-0 top-0 h-40 bg-linear-to-br from-[#ffe37d]/75 via-[#f7c935]/30 to-transparent" />
           <div className="absolute right-6 top-6 h-24 w-24 rounded-full border border-white/60" />
           <div className="absolute right-10 top-10 h-24 w-24 rounded-full border border-[#f4c542]/70 animate-spin-slow" />
+          <div className="absolute -left-8 bottom-8 h-32 w-32 rounded-full bg-[#ffd95a]/35 blur-2xl" />
 
           <div className="relative z-10 flex h-full flex-col justify-between gap-8">
             <div className="space-y-6">
@@ -77,9 +79,9 @@ export default function Login({ setUser }) {
                 return (
                   <div
                     key={item.title}
-                    className="rounded-[1.6rem] border border-white/70 bg-white/65 p-4 animate-float-soft"
+                    className="rounded-[1.6rem] border border-white/70 bg-linear-to-br from-[#fff9e2] to-white/85 p-4 animate-float-soft"
                   >
-                    <div className="mb-3 inline-flex rounded-2xl bg-[#1b4d2f] p-2.5 text-[#f4c542]">
+                    <div className="mb-3 inline-flex rounded-2xl bg-[#f4c542] p-2.5 text-[#1b4d2f]">
                       <IconComponent size={18} />
                     </div>
                     <p className="font-bold text-[#1d1a14]">{item.title}</p>

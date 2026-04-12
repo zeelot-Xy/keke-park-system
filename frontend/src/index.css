@@ -1,18 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #f4efe2;
+  --bg: #f7efcb;
   --panel: rgba(255, 255, 255, 0.82);
   --panel-strong: rgba(255, 255, 255, 0.92);
   --text: #1d1a14;
   --muted: #6f6758;
   --gold: #f4c542;
-  --gold-deep: #e5ac1b;
+  --gold-deep: #da9f0f;
+  --gold-soft: #ffe28a;
   --forest: #14532d;
   --forest-soft: #1e7a45;
   --danger: #c43f3f;
   --line: rgba(29, 26, 20, 0.08);
-  --shadow: 0 24px 70px rgba(52, 43, 25, 0.14);
+  --shadow: 0 24px 70px rgba(85, 60, 7, 0.14);
 }
 
 * {
@@ -33,9 +34,10 @@ body {
     system-ui,
     sans-serif;
   background:
-    radial-gradient(circle at top left, rgba(244, 197, 66, 0.32), transparent 26%),
-    radial-gradient(circle at top right, rgba(20, 83, 45, 0.14), transparent 22%),
-    linear-gradient(180deg, #fff6d6 0%, #f7f0df 35%, #f2ecdf 100%);
+    radial-gradient(circle at top left, rgba(244, 197, 66, 0.48), transparent 25%),
+    radial-gradient(circle at 82% 16%, rgba(255, 225, 120, 0.34), transparent 22%),
+    radial-gradient(circle at bottom right, rgba(20, 83, 45, 0.11), transparent 20%),
+    linear-gradient(180deg, #fff4b8 0%, #ffe9a6 18%, #f8ebc7 52%, #f3ecdf 100%);
 }
 
 a {
@@ -72,7 +74,7 @@ textarea {
   right: -5rem;
   width: 18rem;
   height: 18rem;
-  background: rgba(244, 197, 66, 0.28);
+  background: rgba(244, 197, 66, 0.4);
 }
 
 .page-shell::after {
@@ -80,11 +82,13 @@ textarea {
   bottom: 8rem;
   width: 16rem;
   height: 16rem;
-  background: rgba(20, 83, 45, 0.12);
+  background: rgba(255, 210, 74, 0.22);
 }
 
 .glass-panel {
-  background: var(--panel);
+  background:
+    linear-gradient(180deg, rgba(255, 251, 235, 0.92), rgba(255, 255, 255, 0.78)),
+    var(--panel);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   border: 1px solid rgba(255, 255, 255, 0.55);
@@ -92,7 +96,9 @@ textarea {
 }
 
 .glass-panel-strong {
-  background: var(--panel-strong);
+  background:
+    linear-gradient(180deg, rgba(255, 246, 211, 0.96), rgba(255, 255, 255, 0.9)),
+    var(--panel-strong);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.65);

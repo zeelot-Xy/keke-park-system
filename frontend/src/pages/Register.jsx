@@ -68,6 +68,13 @@ export default function Register() {
     return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 6)}${cleaned.slice(6, 8)}`;
   };
 
+  const validatePhoto = (file) => {
+    if (!file) return "Passport photo is required.";
+    if (!file.type?.startsWith("image/")) return "Only image files are allowed.";
+    if (file.size > 2 * 1024 * 1024) return "Image must be 2MB or less.";
+    return "";
+  };
+
   const validateField = (name, value) => {
     switch (name) {
       case "full_name":
@@ -105,10 +112,7 @@ export default function Register() {
         }
         return "";
       case "photo":
-        if (!photo) return "Passport photo is required.";
-        if (!photo.type.startsWith("image/")) return "Only image files are allowed.";
-        if (photo.size > 2 * 1024 * 1024) return "Image must be 2MB or less.";
-        return "";
+        return validatePhoto(value);
       default:
         return "";
     }
@@ -135,7 +139,7 @@ export default function Register() {
     setPhoto(file);
     setErrors((prev) => ({
       ...prev,
-      photo: file ? validateField("photo", file.name) : "Passport photo is required.",
+      photo: validatePhoto(file),
     }));
   };
 
@@ -147,7 +151,7 @@ export default function Register() {
       password: validateField("password", form.password),
       license_number: validateField("license_number", form.license_number),
       plate_number: validateField("plate_number", form.plate_number),
-      photo: validateField("photo", photo?.name || ""),
+      photo: validatePhoto(photo),
     };
 
     setErrors(nextErrors);

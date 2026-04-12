@@ -11,6 +11,13 @@ const buildFileName = (originalName = "passport.jpg") => {
   return `${Date.now()}-${crypto.randomBytes(8).toString("hex")}${extension}`;
 };
 
+const createStorageError = (message, cause) => {
+  const error = new Error(message);
+  error.code = "PASSPORT_UPLOAD_FAILED";
+  error.cause = cause;
+  return error;
+};
+
 const uploadPassportPhoto = async (file) => {
   if (!file) {
     return null;
@@ -28,10 +35,19 @@ const uploadPassportPhoto = async (file) => {
       });
 
     if (error) {
-      throw error;
+      throw createStorageError(
+        "Passport upload failed. Check the Supabase storage bucket and service role key.",
+        error,
+      );
     }
 
     const { data } = supabase.storage.from(supabaseBucket).getPublicUrl(objectPath);
+
+    if (!data?.publicUrl) {
+      throw createStorageError(
+        "Passport upload completed, but a public URL could not be generated.",
+      );
+    }
 
     return {
       storageType: "supabase",
