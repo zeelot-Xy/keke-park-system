@@ -9,6 +9,7 @@ import {
   RadioTower,
 } from "lucide-react";
 import api from "../lib/api";
+import { setAuthTokens } from "../lib/auth";
 import BrandMark from "../components/BrandMark";
 
 export default function Login({ setUser }) {
@@ -21,6 +22,7 @@ export default function Login({ setUser }) {
 
     try {
       const res = await api.post("/api/auth/login", { phone, password });
+      setAuthTokens(res.data);
       setUser(res.data.user);
       toast.success("Login successful");
       navigate(res.data.user.role === "admin" ? "/admin" : "/driver");

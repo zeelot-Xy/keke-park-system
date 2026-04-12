@@ -118,6 +118,8 @@ const login = async (req, res) => {
 
     res.json({
       message: "Logged in",
+      accessToken,
+      refreshToken,
       user: {
         id: user.id,
         role: user.role,
@@ -134,7 +136,7 @@ const login = async (req, res) => {
 };
 
 const refresh = async (req, res) => {
-  const refreshToken = req.cookies?.refreshToken;
+  const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
   if (!refreshToken)
     return res.status(401).json({ message: "No refresh token" });
 
@@ -153,7 +155,11 @@ const refresh = async (req, res) => {
 
     setAuthCookies(res, accessToken, newRefreshToken);
 
-    res.json({ message: "Token refreshed" });
+    res.json({
+      message: "Token refreshed",
+      accessToken,
+      refreshToken: newRefreshToken,
+    });
   } catch (err) {
     res.status(401).json({ message: "Invalid refresh token" });
   }

@@ -10,6 +10,7 @@ import Register from "./pages/Register";
 import DriverDashboard from "./pages/DriverDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import api from "./lib/api";
+import { clearAuthTokens } from "./lib/auth";
 
 function App() {
   const [user, setUser] = useState(null);
@@ -24,6 +25,7 @@ function App() {
         if (err.response?.status !== 401) {
           console.error("Auth check failed:", err);
         }
+        clearAuthTokens();
         setUser(null);
       } finally {
         setLoading(false);

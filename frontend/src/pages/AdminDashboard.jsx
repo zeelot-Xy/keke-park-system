@@ -14,6 +14,7 @@ import {
   XCircle,
 } from "lucide-react";
 import api from "../lib/api";
+import { clearAuthTokens } from "../lib/auth";
 import { resolveAssetUrl } from "../lib/config";
 import { socket } from "../lib/socket";
 import BrandMark from "../components/BrandMark";
@@ -115,6 +116,7 @@ export default function AdminDashboard({ setUser }) {
     } catch (err) {
       console.error("Logout error:", err);
     } finally {
+      clearAuthTokens();
       setUser(null);
       window.location.href = "/login";
     }
