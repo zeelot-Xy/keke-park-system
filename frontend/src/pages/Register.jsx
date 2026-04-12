@@ -1,20 +1,21 @@
 import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
+import { motion as Motion } from "framer-motion";
 import {
-  ArrowRight,
-  BadgeCheck,
   Camera,
   CarFront,
-  IdCard,
+  CheckCircle2,
+  Circle,
+  FileText,
   Mail,
   Phone,
-  UserRound,
-  LockKeyhole,
+  User,
+  Zap,
 } from "lucide-react";
 import api from "../lib/api";
-import BrandMark from "../components/BrandMark";
 import PasswordField from "../components/PasswordField";
+import InlineNotice from "../components/InlineNotice";
 
 const initialForm = {
   full_name: "",
@@ -34,21 +35,42 @@ const patterns = {
   plate_number: /^[A-Z]{3}-\d{3}[A-Z]{2}$/,
 };
 
+const onboardingSteps = [
+  {
+    number: 1,
+    title: "Submit Your Details",
+    copy: "Provide your information and valid documents",
+    active: true,
+  },
+  {
+    number: 2,
+    title: "Admin Review",
+    copy: "Park admin verifies your credentials",
+    active: false,
+  },
+  {
+    number: 3,
+    title: "Get Approved",
+    copy: "Receive notification and start working",
+    active: false,
+  },
+];
+
 export default function Register() {
   const [form, setForm] = useState(initialForm);
   const [photo, setPhoto] = useState(null);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
   const navigate = useNavigate();
 
   const passwordChecks = useMemo(
-    () => ({
-      minLength: form.password.length >= 8,
-      upper: /[A-Z]/.test(form.password),
-      lower: /[a-z]/.test(form.password),
-      number: /\d/.test(form.password),
-      special: /[^A-Za-z\d]/.test(form.password),
-    }),
+    () => [
+      { text: "At least 8 characters", met: form.password.length >= 8 },
+      { text: "Contains uppercase letter", met: /[A-Z]/.test(form.password) },
+      { text: "Contains lowercase letter", met: /[a-z]/.test(form.password) },
+      { text: "Contains number", met: /\d/.test(form.password) },
+    ],
     [form.password],
   );
 
@@ -87,7 +109,7 @@ export default function Register() {
       case "phone":
         if (!value.trim()) return "Phone number is required.";
         if (!patterns.phone.test(normalizePhone(value))) {
-          return "Enter a valid Nigerian phone number, e.g. 08031234567 or +2348031234567.";
+          return "Enter a valid Nigerian phone number.";
         }
         return "";
       case "email":
@@ -156,7 +178,7 @@ export default function Register() {
     };
 
     setErrors(nextErrors);
-    return Object.values(nextErrors).every((msg) => !msg);
+    return Object.values(nextErrors).every((message) => !message);
   };
 
   const handleSubmit = async (event) => {
@@ -167,21 +189,28 @@ export default function Register() {
     }
 
     setSubmitting(true);
-    const data = new FormData();
-    data.append("full_name", form.full_name.trim());
-    data.append("phone", normalizePhone(form.phone));
-    data.append("email", form.email.trim());
-    data.append("password", form.password);
-    data.append("license_number", normalizeLicense(form.license_number));
-    data.append("plate_number", normalizePlate(form.plate_number));
-    data.append("passport_photo", photo);
 
     try {
+      const data = new FormData();
+      data.append("full_name", form.full_name.trim());
+      data.append("phone", normalizePhone(form.phone));
+      data.append("email", form.email.trim());
+      data.append("password", form.password);
+      data.append("license_number", normalizeLicense(form.license_number));
+      data.append("plate_number", normalizePlate(form.plate_number));
+      data.append("passport_photo", photo);
+
       await api.post("/api/auth/register", data, {
         headers: { "Content-Type": "multipart/form-data" },
       });
+
+      const nextMessage =
+        "Registration successful. Your account is pending admin approval, and you can sign in once it is approved.";
+      setSuccessMessage(nextMessage);
       toast.success("Registration successful! Awaiting admin approval.");
-      navigate("/login");
+      setTimeout(() => {
+        navigate("/login", { state: { notice: nextMessage } });
+      }, 700);
     } catch (err) {
       const message =
         err.response?.data?.message ||
@@ -193,172 +222,175 @@ export default function Register() {
     }
   };
 
-  const inputBase =
-    "w-full rounded-[1.25rem] border border-[#d8d0bd] bg-white px-4 py-3.5 text-[0.98rem] shadow-sm outline-none transition focus:border-[#f4c542] focus:ring-4 focus:ring-[#f4c542]/20";
-  const fieldClass = (name) =>
-    `${inputBase} ${errors[name] ? "border-[#d95d5d] bg-[#fff5f5] focus:ring-[#d95d5d]/15" : ""}`;
-
-  const passwordItems = [
-    { ok: passwordChecks.minLength, label: "At least 8 characters" },
-    { ok: passwordChecks.upper, label: "One uppercase letter" },
-    { ok: passwordChecks.lower, label: "One lowercase letter" },
-    { ok: passwordChecks.number, label: "One number" },
-    { ok: passwordChecks.special, label: "One special character" },
-  ];
-
   return (
-    <div className="page-shell min-h-screen px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
-        <div className="grid gap-6 lg:grid-cols-[0.86fr_1.14fr]">
-          <section className="glass-panel animate-rise-in overflow-hidden rounded-[2rem] p-6 sm:p-8 lg:sticky lg:top-6 lg:h-fit">
-            <div className="space-y-6">
-              <BrandMark />
+    <div className="min-h-screen bg-linear-to-br from-[#fff6d3] via-[#fff9eb] to-[#f7edd1]">
+      <div className="flex min-h-screen flex-col lg:flex-row">
+        <Motion.section
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6 }}
+          className="relative hidden overflow-hidden bg-linear-to-br from-[#1B4D2F] via-[#14532D] to-[#1B4D2F] lg:flex lg:w-2/5 lg:flex-col lg:justify-between lg:p-12"
+        >
+          <div className="absolute top-10 right-10 h-72 w-72 rounded-full bg-[#F4C542]/10 blur-3xl" />
+          <div className="absolute bottom-10 left-10 h-96 w-96 rounded-full bg-[#F4C542]/5 blur-3xl" />
+
+          <div className="relative z-10">
+            <Link
+              to="/login"
+              className="mb-16 flex items-center gap-3 transition-opacity hover:opacity-80"
+            >
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#F4C542] shadow-lg">
+                <Zap className="h-8 w-8 text-[#14532D]" strokeWidth={2.5} />
+              </div>
               <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[#8d6508]">
-                  Driver Onboarding
+                <h1 className="text-2xl font-extrabold text-white">Keke Park</h1>
+                <p className="text-sm font-medium text-white/70">
+                  Driver Registration
                 </p>
-                <h1 className="mt-3 text-4xl font-black leading-tight text-[#1d1a14] sm:text-5xl">
-                  Join the park with a sharper, faster registration flow.
+              </div>
+            </Link>
+
+            <h2 className="mb-8 text-4xl leading-tight font-extrabold text-white">
+              Join the
+              <br />
+              digital queue
+            </h2>
+
+            <div className="mb-12 space-y-6">
+              {onboardingSteps.map((step) => (
+                <div key={step.number} className="flex items-start gap-4">
+                  <div
+                    className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full font-bold ${
+                      step.active
+                        ? "bg-[#F4C542] text-[#14532D]"
+                        : "bg-[#F4C542]/30 text-white"
+                    }`}
+                  >
+                    {step.number}
+                  </div>
+                  <div>
+                    <h3 className="mb-1 font-bold text-white">{step.title}</h3>
+                    <p className="text-sm text-white/70">{step.copy}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-2xl border border-white/20 bg-white/10 p-5 backdrop-blur-sm">
+              <p className="text-sm text-white/90">
+                <span className="font-semibold">Note:</span> Approval typically
+                takes 24-48 hours. You&apos;ll receive an SMS notification.
+              </p>
+            </div>
+          </div>
+
+          <div className="relative z-10">
+            <p className="text-sm text-white/50">
+              Secure registration • Data protected
+            </p>
+          </div>
+        </Motion.section>
+
+        <div className="flex flex-1 items-center justify-center p-6 lg:p-12">
+          <Motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="w-full max-w-xl"
+          >
+            <div className="mb-8 flex items-center justify-center gap-3 lg:hidden">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#1B4D2F]">
+                <Zap className="h-7 w-7 text-[#F4C542]" strokeWidth={2.5} />
+              </div>
+              <div>
+                <h1 className="text-2xl font-extrabold text-[#14532D]">
+                  Keke Park
                 </h1>
-                <p className="mt-4 text-base leading-8 text-[#6f6758]">
-                  Submit your identity details, vehicle information, and passport
-                  photo once. After admin approval, you can log in and use the
-                  live queue immediately.
-                </p>
-              </div>
-
-              <div className="grid gap-3">
-                {[
-                  {
-                    icon: UserRound,
-                    title: "Identity details",
-                    copy: "Full name, phone number, and optional email.",
-                  },
-                  {
-                    icon: IdCard,
-                    title: "Driver credentials",
-                    copy: "Licence and plate details are validated before submission.",
-                  },
-                  {
-                    icon: Camera,
-                    title: "Photo verification",
-                    copy: "Passport photo upload is required and limited to 2MB.",
-                  },
-                ].map((item) => {
-                  const IconComponent = item.icon;
-
-                  return (
-                    <div
-                      key={item.title}
-                      className="rounded-[1.4rem] border border-white/75 bg-white/70 p-4"
-                    >
-                      <div className="mb-3 inline-flex rounded-2xl bg-[#1b4d2f] p-2.5 text-[#f4c542]">
-                        <IconComponent size={18} />
-                      </div>
-                      <p className="font-bold text-[#1d1a14]">{item.title}</p>
-                      <p className="mt-1.5 text-sm leading-6 text-[#6f6758]">
-                        {item.copy}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="rounded-[1.5rem] bg-[#173c26] p-5 text-white">
-                <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.22em] text-[#f7d36a]">
-                  <BadgeCheck size={16} />
-                  Approval Flow
-                </p>
-                <ol className="mt-4 space-y-3 text-sm leading-7 text-white/82">
-                  <li>1. Submit the registration form.</li>
-                  <li>2. Admin reviews your profile and vehicle details.</li>
-                  <li>3. Your park ID is assigned after approval.</li>
-                </ol>
+                <p className="text-xs text-[#6F6758]">Driver Registration</p>
               </div>
             </div>
-          </section>
 
-          <section className="glass-panel-strong animate-rise-in rounded-[2rem] p-6 sm:p-8 lg:p-10">
-            <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[#8d6508]">
-                  Registration Form
-                </p>
-                <h2 className="mt-2 text-3xl font-black text-[#1d1a14] sm:text-4xl">
-                  Create your driver profile
-                </h2>
-              </div>
-              <Link
-                to="/login"
-                className="text-sm font-semibold text-[#1b4d2f] underline decoration-[#f4c542] decoration-2 underline-offset-4"
-              >
-                Already approved? Login
-              </Link>
-            </div>
+            <div className="rounded-3xl border border-[#D8D0BD] bg-[#FFFBEA] p-6 shadow-xl shadow-black/5 lg:p-10">
+              <h2 className="mb-2 text-3xl font-extrabold text-[#1D1A14]">
+                Create Account
+              </h2>
+              <p className="mb-8 text-[#6F6758]">
+                Fill in your details to register as a driver
+              </p>
 
-            <form onSubmit={handleSubmit} className="space-y-6" noValidate>
-              <div className="grid gap-4 md:grid-cols-2">
-                <label className="block md:col-span-2">
-                  <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-[#3f392e]">
-                    <UserRound size={16} className="text-[#1b4d2f]" />
-                    Full name
+              {successMessage ? (
+                <InlineNotice
+                  type="success"
+                  message={successMessage}
+                  className="mb-6"
+                />
+              ) : null}
+
+              <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+                <label className="block">
+                  <span className="mb-2 block text-sm font-semibold text-[#1D1A14]">
+                    Full Name
                   </span>
-                  <input
-                    type="text"
-                    name="full_name"
-                    value={form.full_name}
-                    onChange={handleChange}
-                    onBlur={handleBlur}
-                    placeholder="Enter your full name"
-                    className={fieldClass("full_name")}
-                    maxLength={60}
-                  />
-                  {errors.full_name && (
+                  <div className="relative">
+                    <User className="absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-[#6F6758]" />
+                    <input
+                      type="text"
+                      name="full_name"
+                      value={form.full_name}
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      placeholder="Chukwudi Okafor"
+                      className="w-full rounded-xl border-2 border-[#D8D0BD] bg-white py-3.5 pr-4 pl-12 text-[#1D1A14] outline-none transition-all placeholder:text-[#6F6758]/50 focus:border-[#F4C542] focus:ring-4 focus:ring-[#F4C542]/20"
+                    />
+                  </div>
+                  {errors.full_name ? (
                     <p className="mt-2 text-sm text-[#c43f3f]">{errors.full_name}</p>
-                  )}
+                  ) : null}
                 </label>
 
                 <label className="block">
-                  <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-[#3f392e]">
-                    <Phone size={16} className="text-[#1b4d2f]" />
-                    Phone number
+                  <span className="mb-2 block text-sm font-semibold text-[#1D1A14]">
+                    Phone Number
                   </span>
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={form.phone}
-                    onChange={handleChange}
-                    onBlur={handleBlur}
-                    placeholder="08031234567"
-                    className={fieldClass("phone")}
-                    maxLength={14}
-                  />
-                  {errors.phone && (
+                  <div className="relative">
+                    <Phone className="absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-[#6F6758]" />
+                    <input
+                      type="tel"
+                      name="phone"
+                      value={form.phone}
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      placeholder="080 1234 5678"
+                      className="w-full rounded-xl border-2 border-[#D8D0BD] bg-white py-3.5 pr-4 pl-12 text-[#1D1A14] outline-none transition-all placeholder:text-[#6F6758]/50 focus:border-[#F4C542] focus:ring-4 focus:ring-[#F4C542]/20"
+                    />
+                  </div>
+                  {errors.phone ? (
                     <p className="mt-2 text-sm text-[#c43f3f]">{errors.phone}</p>
-                  )}
+                  ) : null}
                 </label>
 
                 <label className="block">
-                  <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-[#3f392e]">
-                    <Mail size={16} className="text-[#1b4d2f]" />
-                    Email address
+                  <span className="mb-2 block text-sm font-semibold text-[#1D1A14]">
+                    Email Address
                   </span>
-                  <input
-                    type="email"
-                    name="email"
-                    value={form.email}
-                    onChange={handleChange}
-                    onBlur={handleBlur}
-                    placeholder="Optional email"
-                    className={fieldClass("email")}
-                    maxLength={100}
-                  />
-                  {errors.email && (
+                  <div className="relative">
+                    <Mail className="absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-[#6F6758]" />
+                    <input
+                      type="email"
+                      name="email"
+                      value={form.email}
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      placeholder="chukwudi@example.com"
+                      className="w-full rounded-xl border-2 border-[#D8D0BD] bg-white py-3.5 pr-4 pl-12 text-[#1D1A14] outline-none transition-all placeholder:text-[#6F6758]/50 focus:border-[#F4C542] focus:ring-4 focus:ring-[#F4C542]/20"
+                    />
+                  </div>
+                  {errors.email ? (
                     <p className="mt-2 text-sm text-[#c43f3f]">{errors.email}</p>
-                  )}
+                  ) : null}
                 </label>
 
-                <div className="md:col-span-2">
+                <div>
                   <PasswordField
                     label="Password"
                     name="password"
@@ -366,114 +398,131 @@ export default function Register() {
                     onChange={handleChange}
                     onBlur={handleBlur}
                     placeholder="Create a strong password"
-                    icon={LockKeyhole}
-                    inputClassName={errors.password ? "border-[#d95d5d] bg-[#fff5f5] focus-within:ring-[#d95d5d]/15" : ""}
+                    inputClassName="rounded-xl border-2 border-[#D8D0BD] py-3.5 focus-within:border-[#F4C542] focus-within:ring-[#F4C542]/20"
                     error={errors.password}
-                    maxLength={64}
                     required
                   />
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {passwordItems.map((item) => (
-                      <div
-                        key={item.label}
-                        className={`rounded-2xl border px-3 py-2 text-sm ${
-                          item.ok
-                            ? "border-[#1e7a45]/20 bg-[#eff9f2] text-[#1e7a45]"
-                            : "border-[#e8dfcf] bg-[#fbf8f1] text-[#7b725f]"
-                        }`}
-                      >
-                        {item.label}
-                      </div>
-                    ))}
-                  </div>
+
+                  {form.password ? (
+                    <div className="mt-3 space-y-2">
+                      {passwordChecks.map((rule) => (
+                        <div key={rule.text} className="flex items-center gap-2">
+                          {rule.met ? (
+                            <CheckCircle2 className="h-4 w-4 text-[#1E7A45]" />
+                          ) : (
+                            <Circle className="h-4 w-4 text-[#D8D0BD]" />
+                          )}
+                          <span
+                            className={`text-xs ${
+                              rule.met ? "text-[#1E7A45]" : "text-[#6F6758]"
+                            }`}
+                          >
+                            {rule.text}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
 
                 <label className="block">
-                  <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-[#3f392e]">
-                    <IdCard size={16} className="text-[#1b4d2f]" />
-                    Licence number
+                  <span className="mb-2 block text-sm font-semibold text-[#1D1A14]">
+                    Driver&apos;s License Number
                   </span>
-                  <input
-                    type="text"
-                    name="license_number"
-                    value={form.license_number}
-                    onChange={handleChange}
-                    onBlur={handleBlur}
-                    placeholder="Driver licence number"
-                    className={fieldClass("license_number")}
-                    maxLength={20}
-                  />
-                  {errors.license_number && (
+                  <div className="relative">
+                    <FileText className="absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-[#6F6758]" />
+                    <input
+                      type="text"
+                      name="license_number"
+                      value={form.license_number}
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      placeholder="LAG123456789"
+                      className="w-full rounded-xl border-2 border-[#D8D0BD] bg-white py-3.5 pr-4 pl-12 text-[#1D1A14] outline-none transition-all placeholder:text-[#6F6758]/50 focus:border-[#F4C542] focus:ring-4 focus:ring-[#F4C542]/20"
+                    />
+                  </div>
+                  {errors.license_number ? (
                     <p className="mt-2 text-sm text-[#c43f3f]">
                       {errors.license_number}
                     </p>
-                  )}
+                  ) : null}
                 </label>
 
                 <label className="block">
-                  <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-[#3f392e]">
-                    <CarFront size={16} className="text-[#1b4d2f]" />
-                    Plate number
+                  <span className="mb-2 block text-sm font-semibold text-[#1D1A14]">
+                    Keke Plate Number
                   </span>
-                  <input
-                    type="text"
-                    name="plate_number"
-                    value={form.plate_number}
-                    onChange={handleChange}
-                    onBlur={handleBlur}
-                    placeholder="ABC-123DE"
-                    className={fieldClass("plate_number")}
-                    maxLength={9}
-                  />
-                  {errors.plate_number && (
+                  <div className="relative">
+                    <CarFront className="absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-[#6F6758]" />
+                    <input
+                      type="text"
+                      name="plate_number"
+                      value={form.plate_number}
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      placeholder="ABC-123DE"
+                      className="w-full rounded-xl border-2 border-[#D8D0BD] bg-white py-3.5 pr-4 pl-12 text-[#1D1A14] outline-none transition-all placeholder:text-[#6F6758]/50 focus:border-[#F4C542] focus:ring-4 focus:ring-[#F4C542]/20"
+                    />
+                  </div>
+                  {errors.plate_number ? (
                     <p className="mt-2 text-sm text-[#c43f3f]">
                       {errors.plate_number}
                     </p>
-                  )}
+                  ) : null}
                 </label>
-              </div>
 
-              <div className="rounded-[1.5rem] border border-dashed border-[#d2c6ab] bg-[#fffdfa] p-4 sm:p-5">
-                <label className="block">
-                  <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-[#3f392e]">
-                    <Camera size={16} className="text-[#1b4d2f]" />
-                    Passport photo
+                <div>
+                  <span className="mb-2 block text-sm font-semibold text-[#1D1A14]">
+                    Passport Photograph
                   </span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePhotoChange}
-                    className={`block w-full rounded-[1.2rem] border bg-white px-4 py-3 text-sm ${
-                      errors.photo
-                        ? "border-[#d95d5d] bg-[#fff5f5]"
-                        : "border-[#d8d0bd]"
-                    }`}
-                  />
-                </label>
-                <p className="mt-3 text-sm leading-6 text-[#6f6758]">
-                  Use a clear face photo in JPG, PNG, or WEBP format. Maximum
-                  file size is 2MB.
-                </p>
-                {errors.photo && (
-                  <p className="mt-2 text-sm text-[#c43f3f]">{errors.photo}</p>
-                )}
-              </div>
+                  <div className="relative">
+                    <input
+                      type="file"
+                      id="photo-upload"
+                      accept="image/*"
+                      onChange={handlePhotoChange}
+                      className="hidden"
+                    />
+                    <label
+                      htmlFor="photo-upload"
+                      className="group flex h-40 w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#D8D0BD] bg-white transition-all hover:border-[#F4C542] hover:bg-[#FFFBEA]"
+                    >
+                      <Camera className="mb-2 h-10 w-10 text-[#6F6758] transition-colors group-hover:text-[#F4C542]" />
+                      <p className="text-sm font-semibold text-[#6F6758] transition-colors group-hover:text-[#1D1A14]">
+                        {photo ? photo.name : "Click to upload photo"}
+                      </p>
+                      <p className="mt-1 text-xs text-[#6F6758]">
+                        JPG, PNG up to 2MB
+                      </p>
+                    </label>
+                  </div>
+                  {errors.photo ? (
+                    <p className="mt-2 text-sm text-[#c43f3f]">{errors.photo}</p>
+                  ) : null}
+                </div>
 
-              <button
-                type="submit"
-                disabled={submitting}
-                className="group flex w-full items-center justify-center gap-3 rounded-[1.4rem] bg-[#1b4d2f] px-6 py-4 text-lg font-bold text-white shadow-[0_18px_36px_rgba(27,77,47,0.24)] transition hover:-translate-y-0.5 hover:bg-[#143a24] disabled:cursor-not-allowed disabled:bg-[#91a393]"
-              >
-                {submitting ? "Submitting..." : "Submit Registration"}
-                {!submitting && (
-                  <ArrowRight
-                    size={18}
-                    className="transition group-hover:translate-x-1"
-                  />
-                )}
-              </button>
-            </form>
-          </section>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="mt-6 w-full rounded-xl bg-[#F4C542] py-4 font-bold text-[#1D1A14] shadow-lg shadow-[#F4C542]/30 transition-all hover:-translate-y-0.5 hover:bg-[#DCA117] hover:shadow-xl hover:shadow-[#F4C542]/40 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {submitting ? "Submitting..." : "Submit Registration"}
+                </button>
+              </form>
+
+              <div className="mt-6 text-center">
+                <p className="text-sm text-[#6F6758]">
+                  Already registered?{" "}
+                  <Link
+                    to="/login"
+                    className="font-semibold text-[#1B4D2F] underline underline-offset-2 transition-colors hover:text-[#14532D]"
+                  >
+                    Sign in
+                  </Link>
+                </p>
+              </div>
+            </div>
+          </Motion.div>
         </div>
       </div>
     </div>

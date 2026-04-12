@@ -9,8 +9,10 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import DriverDashboard from "./pages/DriverDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
+import NotFound from "./pages/NotFound";
 import api from "./lib/api";
 import { clearAuthTokens } from "./lib/auth";
+import LoadingScreen from "./components/LoadingScreen";
 
 function App() {
   const [user, setUser] = useState(null);
@@ -36,11 +38,7 @@ function App() {
   }, []);
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-linear-to-b from-[#FFED00] to-white text-2xl">
-        Loading Keke Park...
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   return (
@@ -84,6 +82,7 @@ function App() {
           }
         />
         <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </Router>
   );

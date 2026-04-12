@@ -121,6 +121,58 @@ textarea {
   letter-spacing: 0.04em;
 }
 
+.interactive-card {
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease,
+    background-color 180ms ease;
+  transform-origin: center;
+}
+
+.interactive-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 28px 60px rgba(85, 60, 7, 0.16);
+}
+
+.interactive-button {
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    filter 160ms ease,
+    background-color 160ms ease;
+}
+
+.interactive-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: saturate(1.02);
+}
+
+.interactive-button:active:not(:disabled) {
+  transform: translateY(0) scale(0.985);
+}
+
+.tab-pill {
+  position: relative;
+  overflow: hidden;
+}
+
+.tab-pill::after {
+  content: "";
+  position: absolute;
+  inset: auto 18% 7px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(20, 83, 45, 0.18);
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.tab-pill:hover::after,
+.tab-pill[data-active="true"]::after {
+  opacity: 1;
+}
+
 .animate-float-soft {
   animation: floatSoft 5s ease-in-out infinite;
 }
@@ -135,6 +187,11 @@ textarea {
 
 .animate-spin-slow {
   animation: spinSlow 14s linear infinite;
+}
+
+.animate-shimmer-soft {
+  animation: shimmerSoft 2.2s linear infinite;
+  background-size: 200% 100%;
 }
 
 @keyframes floatSoft {
@@ -174,5 +231,14 @@ textarea {
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes shimmerSoft {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
   }
 }
