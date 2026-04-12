@@ -3,14 +3,15 @@ import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
-  LockKeyhole,
   Phone,
   ShieldCheck,
   RadioTower,
+  LockKeyhole,
 } from "lucide-react";
 import api from "../lib/api";
 import { setAuthTokens } from "../lib/auth";
 import BrandMark from "../components/BrandMark";
+import PasswordField from "../components/PasswordField";
 
 export default function Login({ setUser }) {
   const [phone, setPhone] = useState("");
@@ -134,22 +135,14 @@ export default function Login({ setUser }) {
               </div>
             </label>
 
-            <label className="block">
-              <span className="mb-2 block text-sm font-semibold text-[#3f392e]">
-                Password
-              </span>
-              <div className="flex items-center gap-3 rounded-[1.35rem] border border-[#d8d0bd] bg-white px-4 py-4 shadow-sm transition focus-within:border-[#f4c542] focus-within:ring-4 focus-within:ring-[#f4c542]/20">
-                <LockKeyhole size={18} className="text-[#1b4d2f]" />
-                <input
-                  type="password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-transparent text-base outline-none placeholder:text-[#9d9486]"
-                  required
-                />
-              </div>
-            </label>
+            <PasswordField
+              label="Password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Enter your password"
+              icon={LockKeyhole}
+              required
+            />
 
             <button
               type="submit"

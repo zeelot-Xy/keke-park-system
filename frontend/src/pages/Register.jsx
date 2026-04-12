@@ -7,13 +7,14 @@ import {
   Camera,
   CarFront,
   IdCard,
-  LockKeyhole,
   Mail,
   Phone,
   UserRound,
+  LockKeyhole,
 } from "lucide-react";
 import api from "../lib/api";
 import BrandMark from "../components/BrandMark";
+import PasswordField from "../components/PasswordField";
 
 const initialForm = {
   full_name: "",
@@ -357,24 +358,20 @@ export default function Register() {
                   )}
                 </label>
 
-                <label className="block md:col-span-2">
-                  <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-[#3f392e]">
-                    <LockKeyhole size={16} className="text-[#1b4d2f]" />
-                    Password
-                  </span>
-                  <input
-                    type="password"
+                <div className="md:col-span-2">
+                  <PasswordField
+                    label="Password"
                     name="password"
                     value={form.password}
                     onChange={handleChange}
                     onBlur={handleBlur}
                     placeholder="Create a strong password"
-                    className={fieldClass("password")}
+                    icon={LockKeyhole}
+                    inputClassName={errors.password ? "border-[#d95d5d] bg-[#fff5f5] focus-within:ring-[#d95d5d]/15" : ""}
+                    error={errors.password}
                     maxLength={64}
+                    required
                   />
-                  {errors.password && (
-                    <p className="mt-2 text-sm text-[#c43f3f]">{errors.password}</p>
-                  )}
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     {passwordItems.map((item) => (
                       <div
@@ -389,7 +386,7 @@ export default function Register() {
                       </div>
                     ))}
                   </div>
-                </label>
+                </div>
 
                 <label className="block">
                   <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-[#3f392e]">
