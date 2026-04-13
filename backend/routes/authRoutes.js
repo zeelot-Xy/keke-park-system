@@ -6,6 +6,7 @@ const {
   login,
   refresh,
   logout,
+  verifyEmail,
 } = require("../controllers/authController");
 const pool = require("../db/connection");
 const { authenticate } = require("../middleware/auth");
@@ -69,6 +70,7 @@ router.post(
 
 router.post("/refresh", refresh);
 router.post("/logout", logout);
+router.get("/verify-email", verifyEmail);
 
 router.get("/me", authenticate, async (req, res) => {
   try {

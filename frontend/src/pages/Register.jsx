@@ -200,14 +200,20 @@ export default function Register() {
       data.append("plate_number", normalizePlate(form.plate_number));
       data.append("passport_photo", photo);
 
-      await api.post("/api/auth/register", data, {
+      const response = await api.post("/api/auth/register", data, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
       const nextMessage =
-        "Registration successful. Your account is pending admin approval, and you can sign in once it is approved.";
+        response.data?.verificationEmailSent
+          ? "Registration successful. Check your email to verify your account for automatic approval. If you do not verify, admin review will still be used."
+          : "Registration successful. No email was provided, so your account will wait for manual admin approval.";
       setSuccessMessage(nextMessage);
-      toast.success("Registration successful! Awaiting admin approval.");
+      toast.success(
+        response.data?.verificationEmailSent
+          ? "Registration successful! Check your email to verify."
+          : "Registration successful! Awaiting admin approval.",
+      );
       setTimeout(() => {
         navigate("/login", { state: { notice: nextMessage } });
       }, 700);
@@ -278,8 +284,9 @@ export default function Register() {
 
             <div className="rounded-2xl border border-white/20 bg-white/10 p-5 backdrop-blur-sm">
               <p className="text-sm text-white/90">
-                <span className="font-semibold">Note:</span> Approval typically
-                takes 24-48 hours. You&apos;ll receive an SMS notification.
+                <span className="font-semibold">Note:</span> Add a valid email
+                to get a verification link for automatic approval. Without
+                email verification, admin review still applies.
               </p>
             </div>
           </div>

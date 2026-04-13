@@ -9,6 +9,13 @@ const {
 } = require("../utils/normalizers");
 const { setAuthCookies, clearAuthCookies } = require("../utils/cookies");
 const { uploadPassportPhoto } = require("../services/passportStorage");
+const {
+  buildRedirectUrl,
+  buildVerificationUrl,
+  createVerificationToken,
+  hashVerificationToken,
+  sendVerificationEmail,
+} = require("../services/emailVerificationService");
 
 const isUniqueViolation = (error) => error?.code === "23505";
 const isStorageFailure = (error) => error?.code === "PASSPORT_UPLOAD_FAILED";
@@ -39,11 +46,16 @@ const register = async (req, res) => {
 
   try {
     const uploadedPhoto = await uploadPassportPhoto(req.file);
+    let verificationToken = null;
+
+    if (email) {
+      verificationToken = createVerificationToken();
+    }
 
     await pool.query(
       `INSERT INTO users
-       (full_name, phone, email, password, license_number, plate_number, passport_photo, role, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'driver', 'pending')`,
+       (full_name, phone, email, password, license_number, plate_number, passport_photo, role, status, email_verification_token, email_verification_sent_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'driver', 'pending', $8, $9)`,
       [
         full_name,
         phone,
@@ -52,12 +64,33 @@ const register = async (req, res) => {
         license_number,
         plate_number,
         uploadedPhoto.publicUrl,
+        verificationToken?.hashedToken || null,
+        verificationToken ? new Date().toISOString() : null,
       ],
     );
 
-    res
-      .status(201)
-      .json({ message: "Registration successful. Awaiting admin approval." });
+    let emailSent = false;
+
+    if (email && verificationToken) {
+      try {
+        const verificationUrl = buildVerificationUrl(req, verificationToken.rawToken);
+        const emailResult = await sendVerificationEmail({
+          toEmail: email,
+          toName: full_name,
+          verificationUrl,
+        });
+        emailSent = emailResult.sent;
+      } catch (emailError) {
+        console.error("Verification email error:", emailError);
+      }
+    }
+
+    res.status(201).json({
+      message: emailSent
+        ? "Registration successful. Check your email to verify your account for automatic approval, or wait for admin review."
+        : "Registration successful. Awaiting admin approval.",
+      verificationEmailSent: emailSent,
+    });
   } catch (err) {
     console.error("Registration error:", err);
     if (isUniqueViolation(err)) {
@@ -170,4 +203,55 @@ const logout = (req, res) => {
   res.json({ message: "Logged out" });
 };
 
-module.exports = { register, login, refresh, logout };
+const verifyEmail = async (req, res) => {
+  const token = req.query?.token;
+
+  if (!token) {
+    return res.redirect(buildRedirectUrl("missing-token"));
+  }
+
+  try {
+    const hashedToken = hashVerificationToken(token);
+    const [rows] = await pool.query(
+      `SELECT id, status, email_verification_token, email_verified_at
+       FROM users
+       WHERE email_verification_token = $1
+       LIMIT 1`,
+      [hashedToken],
+    );
+
+    if (!rows.length) {
+      return res.redirect(buildRedirectUrl("invalid-token"));
+    }
+
+    const user = rows[0];
+
+    if (user.email_verified_at) {
+      return res.redirect(buildRedirectUrl("already-verified"));
+    }
+
+    if (user.status === "rejected") {
+      return res.redirect(buildRedirectUrl("manual-review-required"));
+    }
+
+    await pool.query(
+      `UPDATE users
+       SET email_verified_at = NOW(),
+           email_verification_token = NULL,
+           status = CASE
+             WHEN status = 'pending' THEN 'approved'
+             ELSE status
+           END
+       WHERE id = $1`,
+      [user.id],
+    );
+
+    global.io.emit("queueUpdated");
+    return res.redirect(buildRedirectUrl("success"));
+  } catch (err) {
+    console.error("Verify email error:", err);
+    return res.redirect(buildRedirectUrl("server-error"));
+  }
+};
+
+module.exports = { register, login, refresh, logout, verifyEmail };

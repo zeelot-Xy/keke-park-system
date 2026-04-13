@@ -41,6 +41,23 @@ export default function Login({ setUser }) {
   const navigate = useNavigate();
   const location = useLocation();
   const loginNotice = location.state?.notice;
+  const verifiedStatus = new URLSearchParams(location.search).get("verified");
+  const verificationMessages = {
+    success:
+      "Email verified successfully. Your driver account has been approved automatically and you can now sign in.",
+    "already-verified":
+      "This email was already verified earlier. You can sign in if the account is approved.",
+    "manual-review-required":
+      "Your email link was received, but this account still needs manual admin review.",
+    "invalid-token":
+      "That verification link is invalid or has already been used. You can wait for admin approval instead.",
+    "missing-token": "Verification link is incomplete. Please use the full email link.",
+    "server-error":
+      "Something went wrong while verifying your email. Please try again later or wait for admin approval.",
+  };
+  const verificationNotice = verifiedStatus
+    ? verificationMessages[verifiedStatus] || verificationMessages["server-error"]
+    : "";
 
   const handleLogin = async (event) => {
     event.preventDefault();
@@ -167,6 +184,14 @@ export default function Login({ setUser }) {
                 <InlineNotice
                   type="success"
                   message={loginNotice}
+                  className="mb-6"
+                />
+              ) : null}
+
+              {!loginNotice && verificationNotice ? (
+                <InlineNotice
+                  type={verifiedStatus === "success" ? "success" : "info"}
+                  message={verificationNotice}
                   className="mb-6"
                 />
               ) : null}

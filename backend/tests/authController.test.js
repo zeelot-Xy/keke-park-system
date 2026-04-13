@@ -16,12 +16,37 @@ jest.mock("express-validator", () => ({
   validationResult: jest.fn(),
 }));
 
+jest.mock("../services/passportStorage", () => ({
+  uploadPassportPhoto: jest.fn(),
+}));
+
+jest.mock("../services/emailVerificationService", () => ({
+  buildRedirectUrl: jest.fn(
+    (status) => `http://localhost:5173/login?verified=${status}`,
+  ),
+  buildVerificationUrl: jest.fn(
+    () => "https://backend.example.com/api/auth/verify-email?token=test-token",
+  ),
+  createVerificationToken: jest.fn(() => ({
+    rawToken: "raw-token",
+    hashedToken: "hashed-token",
+  })),
+  hashVerificationToken: jest.fn((token) => `hashed:${token}`),
+  sendVerificationEmail: jest.fn(),
+}));
+
 const pool = require("../db/connection");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { validationResult } = require("express-validator");
+const { uploadPassportPhoto } = require("../services/passportStorage");
+const {
+  createVerificationToken,
+  hashVerificationToken,
+  sendVerificationEmail,
+} = require("../services/emailVerificationService");
 const { createResponse } = require("./helpers/httpMocks");
-const { login } = require("../controllers/authController");
+const { login, register, verifyEmail } = require("../controllers/authController");
 
 describe("authController", () => {
   beforeEach(() => {
@@ -87,5 +112,93 @@ describe("authController", () => {
 
     expect(res.statusCode).toBe(400);
     expect(res.payload.message).toBe("Validation failed");
+  });
+
+  test("register sends verification email when valid email is provided", async () => {
+    bcrypt.hash.mockResolvedValueOnce("hashed-password");
+    uploadPassportPhoto.mockResolvedValueOnce({
+      publicUrl: "https://images.example.com/passport.jpg",
+    });
+    pool.query.mockResolvedValueOnce([[], { rowCount: 1 }]);
+    sendVerificationEmail.mockResolvedValueOnce({ sent: true });
+
+    const req = {
+      body: {
+        full_name: "Test Driver",
+        phone: "08012345678",
+        email: "driver@example.com",
+        password: "StrongPass1!",
+        license_number: "DRV1234567",
+        plate_number: "ABC-123DE",
+      },
+      file: { originalname: "passport.jpg" },
+      get: jest.fn((header) => {
+        if (header === "x-forwarded-proto") return "https";
+        if (header === "host") return "backend.example.com";
+        return "";
+      }),
+      protocol: "https",
+    };
+    const res = createResponse();
+
+    await register(req, res);
+
+    expect(createVerificationToken).toHaveBeenCalled();
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining("email_verification_token"),
+      [
+        "Test Driver",
+        "+2348012345678",
+        "driver@example.com",
+        "hashed-password",
+        "DRV1234567",
+        "ABC-123DE",
+        "https://images.example.com/passport.jpg",
+        "hashed-token",
+        expect.any(String),
+      ],
+    );
+    expect(sendVerificationEmail).toHaveBeenCalledWith({
+      toEmail: "driver@example.com",
+      toName: "Test Driver",
+      verificationUrl:
+        "https://backend.example.com/api/auth/verify-email?token=test-token",
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.payload.verificationEmailSent).toBe(true);
+  });
+
+  test("verifyEmail auto-approves a pending driver and redirects to success", async () => {
+    global.io = { emit: jest.fn() };
+    pool.query
+      .mockResolvedValueOnce([
+        [
+          {
+            id: 9,
+            status: "pending",
+            email_verification_token: "hashed:raw-token",
+            email_verified_at: null,
+          },
+        ],
+      ])
+      .mockResolvedValueOnce([[], { rowCount: 1 }]);
+
+    const req = {
+      query: { token: "raw-token" },
+    };
+    const res = createResponse();
+
+    await verifyEmail(req, res);
+
+    expect(hashVerificationToken).toHaveBeenCalledWith("raw-token");
+    expect(pool.query).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("email_verified_at = NOW()"),
+      [9],
+    );
+    expect(global.io.emit).toHaveBeenCalledWith("queueUpdated");
+    expect(res.redirectUrl).toBe(
+      "http://localhost:5173/login?verified=success",
+    );
   });
 });

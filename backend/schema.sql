@@ -28,11 +28,23 @@ CREATE TABLE IF NOT EXISTS users (
   license_number VARCHAR(50) UNIQUE,
   plate_number VARCHAR(20) UNIQUE,
   passport_photo TEXT,
+  email_verification_token VARCHAR(255),
+  email_verification_sent_at TIMESTAMPTZ,
+  email_verified_at TIMESTAMPTZ,
   status user_status NOT NULL DEFAULT 'pending',
   deletion_requested_at TIMESTAMPTZ,
   deletion_eligible_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS email_verification_token VARCHAR(255);
+
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS email_verification_sent_at TIMESTAMPTZ;
+
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ;
 
 ALTER TABLE users
 ADD COLUMN IF NOT EXISTS deletion_requested_at TIMESTAMPTZ;
