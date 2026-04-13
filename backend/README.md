@@ -81,6 +81,7 @@ Override the demo passwords with `DEMO_ADMIN_PASSWORD` and `DEMO_DRIVER_PASSWORD
 - If the user never verifies the email, the normal admin approval flow remains available as the fallback.
 - Set `PUBLIC_BACKEND_URL` to your live backend URL so the email link points to the correct Render deployment.
 - If the EmailJS variables are not configured, registration still works and the account simply waits for manual admin approval.
+- Use [EMAILJS_TEMPLATE.md](C:\Users\Zeelot\Desktop\keke-park-system\backend\EMAILJS_TEMPLATE.md) for a ready-to-paste subject and email body.
 
 ## Production Notes
 
