@@ -14,11 +14,25 @@ const {
   buildVerificationUrl,
   createVerificationToken,
   hashVerificationToken,
+  isEmailVerificationConfigured,
   sendVerificationEmail,
 } = require("../services/emailVerificationService");
 
 const isUniqueViolation = (error) => error?.code === "23505";
 const isStorageFailure = (error) => error?.code === "PASSPORT_UPLOAD_FAILED";
+
+const getVerificationMessage = (reason) => {
+  switch (reason) {
+    case "sent":
+      return "Registration successful. Check your email to verify your account. If verification is delayed, admin approval may still happen within 24 hours.";
+    case "send_failed":
+    case "email_not_configured":
+      return "Registration successful. We could not send the verification email right now. Your account is now waiting for admin approval within 24 hours.";
+    case "no_email":
+    default:
+      return "Registration successful. Your account is now waiting for admin approval within 24 hours.";
+  }
+};
 
 const register = async (req, res) => {
   const errors = validationResult(req);
@@ -69,9 +83,18 @@ const register = async (req, res) => {
       ],
     );
 
-    let emailSent = false;
+    let verification = {
+      attempted: false,
+      sent: false,
+      fallback: "manual_approval",
+      reason: email ? "send_failed" : "no_email",
+    };
 
     if (email && verificationToken) {
+      console.info("Verification email dispatch starting", {
+        email,
+        configured: isEmailVerificationConfigured(),
+      });
       try {
         const verificationUrl = buildVerificationUrl(req, verificationToken.rawToken);
         const emailResult = await sendVerificationEmail({
@@ -79,17 +102,33 @@ const register = async (req, res) => {
           toName: full_name,
           verificationUrl,
         });
-        emailSent = emailResult.sent;
+        verification = {
+          attempted: !!emailResult.attempted,
+          sent: !!emailResult.sent,
+          fallback: "manual_approval",
+          reason: emailResult.reason || (emailResult.sent ? "sent" : "send_failed"),
+        };
+        console.info("Verification email dispatch completed", {
+          email,
+          attempted: verification.attempted,
+          sent: verification.sent,
+          reason: verification.reason,
+        });
       } catch (emailError) {
         console.error("Verification email error:", emailError);
+        verification = {
+          attempted: true,
+          sent: false,
+          fallback: "manual_approval",
+          reason: "send_failed",
+        };
       }
     }
 
     res.status(201).json({
-      message: emailSent
-        ? "Registration successful. Check your email to verify your account for automatic approval, or wait for admin review."
-        : "Registration successful. Awaiting admin approval.",
-      verificationEmailSent: emailSent,
+      message: getVerificationMessage(verification.reason),
+      verification,
+      verificationEmailSent: verification.sent,
     });
   } catch (err) {
     console.error("Registration error:", err);

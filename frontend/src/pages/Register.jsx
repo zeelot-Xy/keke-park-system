@@ -63,6 +63,24 @@ export default function Register() {
   const [submitting, setSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const navigate = useNavigate();
+  const verificationMessages = {
+    sent:
+      "Registration successful. Check your email to verify your account. If verification is delayed, admin approval may still happen within 24 hours.",
+    send_failed:
+      "Registration successful. We could not send the verification email right now. Your account is now waiting for admin approval within 24 hours.",
+    email_not_configured:
+      "Registration successful. We could not send the verification email right now. Your account is now waiting for admin approval within 24 hours.",
+    no_email:
+      "Registration successful. Your account is now waiting for admin approval within 24 hours.",
+  };
+
+  const verificationToasts = {
+    sent: "Registration successful! Check your email to verify.",
+    send_failed: "Registration successful! Awaiting admin approval within 24 hours.",
+    email_not_configured:
+      "Registration successful! Awaiting admin approval within 24 hours.",
+    no_email: "Registration successful! Awaiting admin approval within 24 hours.",
+  };
 
   const passwordChecks = useMemo(
     () => [
@@ -204,15 +222,13 @@ export default function Register() {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
+      const verificationReason =
+        response.data?.verification?.reason || "no_email";
       const nextMessage =
-        response.data?.verificationEmailSent
-          ? "Registration successful. Check your email to verify your account for automatic approval. If you do not verify, admin review will still be used."
-          : "Registration successful. No email was provided, so your account will wait for manual admin approval.";
+        verificationMessages[verificationReason] || verificationMessages.no_email;
       setSuccessMessage(nextMessage);
       toast.success(
-        response.data?.verificationEmailSent
-          ? "Registration successful! Check your email to verify."
-          : "Registration successful! Awaiting admin approval.",
+        verificationToasts[verificationReason] || verificationToasts.no_email,
       );
       setTimeout(() => {
         navigate("/login", { state: { notice: nextMessage } });

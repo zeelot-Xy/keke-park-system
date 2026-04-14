@@ -32,6 +32,7 @@ jest.mock("../services/emailVerificationService", () => ({
     hashedToken: "hashed-token",
   })),
   hashVerificationToken: jest.fn((token) => `hashed:${token}`),
+  isEmailVerificationConfigured: jest.fn(() => true),
   sendVerificationEmail: jest.fn(),
 }));
 
@@ -120,7 +121,11 @@ describe("authController", () => {
       publicUrl: "https://images.example.com/passport.jpg",
     });
     pool.query.mockResolvedValueOnce([[], { rowCount: 1 }]);
-    sendVerificationEmail.mockResolvedValueOnce({ sent: true });
+    sendVerificationEmail.mockResolvedValueOnce({
+      sent: true,
+      attempted: true,
+      reason: "sent",
+    });
 
     const req = {
       body: {
@@ -166,6 +171,85 @@ describe("authController", () => {
     });
     expect(res.statusCode).toBe(201);
     expect(res.payload.verificationEmailSent).toBe(true);
+    expect(res.payload.verification).toEqual({
+      attempted: true,
+      sent: true,
+      fallback: "manual_approval",
+      reason: "sent",
+    });
+  });
+
+  test("register returns send_failed verification state when email dispatch fails", async () => {
+    bcrypt.hash.mockResolvedValueOnce("hashed-password");
+    uploadPassportPhoto.mockResolvedValueOnce({
+      publicUrl: "https://images.example.com/passport.jpg",
+    });
+    pool.query.mockResolvedValueOnce([[], { rowCount: 1 }]);
+    sendVerificationEmail.mockRejectedValueOnce(new Error("provider failed"));
+
+    const req = {
+      body: {
+        full_name: "Test Driver",
+        phone: "08012345678",
+        email: "driver@example.com",
+        password: "StrongPass1!",
+        license_number: "DRV1234567",
+        plate_number: "ABC-123DE",
+      },
+      file: { originalname: "passport.jpg" },
+      get: jest.fn((header) => {
+        if (header === "x-forwarded-proto") return "https";
+        if (header === "host") return "backend.example.com";
+        return "";
+      }),
+      protocol: "https",
+    };
+    const res = createResponse();
+
+    await register(req, res);
+
+    expect(res.statusCode).toBe(201);
+    expect(res.payload.verification).toEqual({
+      attempted: true,
+      sent: false,
+      fallback: "manual_approval",
+      reason: "send_failed",
+    });
+    expect(res.payload.message).toMatch(/waiting for admin approval within 24 hours/i);
+  });
+
+  test("register returns no_email verification state when email is omitted", async () => {
+    bcrypt.hash.mockResolvedValueOnce("hashed-password");
+    uploadPassportPhoto.mockResolvedValueOnce({
+      publicUrl: "https://images.example.com/passport.jpg",
+    });
+    pool.query.mockResolvedValueOnce([[], { rowCount: 1 }]);
+
+    const req = {
+      body: {
+        full_name: "Test Driver",
+        phone: "08012345678",
+        email: "",
+        password: "StrongPass1!",
+        license_number: "DRV1234567",
+        plate_number: "ABC-123DE",
+      },
+      file: { originalname: "passport.jpg" },
+      get: jest.fn(),
+      protocol: "https",
+    };
+    const res = createResponse();
+
+    await register(req, res);
+
+    expect(sendVerificationEmail).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(201);
+    expect(res.payload.verification).toEqual({
+      attempted: false,
+      sent: false,
+      fallback: "manual_approval",
+      reason: "no_email",
+    });
   });
 
   test("verifyEmail auto-approves a pending driver and redirects to success", async () => {

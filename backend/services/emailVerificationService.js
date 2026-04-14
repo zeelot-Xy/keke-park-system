@@ -8,6 +8,8 @@ const EMAILJS_ENABLED =
   !!process.env.EMAILJS_PRIVATE_KEY &&
   !!process.env.EMAIL_FROM_NAME;
 
+const isEmailVerificationConfigured = () => EMAILJS_ENABLED;
+
 const hashVerificationToken = (token) =>
   crypto.createHash("sha256").update(token).digest("hex");
 
@@ -40,7 +42,7 @@ const buildRedirectUrl = (status) =>
 
 const sendVerificationEmail = async ({ toEmail, toName, verificationUrl }) => {
   if (!EMAILJS_ENABLED) {
-    return { sent: false, reason: "EMAILJS_NOT_CONFIGURED" };
+    return { sent: false, attempted: false, reason: "email_not_configured" };
   }
 
   await emailjs.send(
@@ -59,7 +61,7 @@ const sendVerificationEmail = async ({ toEmail, toName, verificationUrl }) => {
     },
   );
 
-  return { sent: true };
+  return { sent: true, attempted: true, reason: "sent" };
 };
 
 module.exports = {
@@ -67,5 +69,6 @@ module.exports = {
   buildVerificationUrl,
   createVerificationToken,
   hashVerificationToken,
+  isEmailVerificationConfigured,
   sendVerificationEmail,
 };

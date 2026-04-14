@@ -46,14 +46,15 @@ export default function Login({ setUser }) {
     success:
       "Email verified successfully. Your driver account has been approved automatically and you can now sign in.",
     "already-verified":
-      "This email was already verified earlier. You can sign in if the account is approved.",
+      "This email was already verified earlier. You can sign in if the account is already approved.",
     "manual-review-required":
-      "Your email link was received, but this account still needs manual admin review.",
+      "Your email was received, but this account still needs manual admin review.",
     "invalid-token":
-      "That verification link is invalid or has already been used. You can wait for admin approval instead.",
-    "missing-token": "Verification link is incomplete. Please use the full email link.",
+      "That verification link is invalid or has already been used. You can still wait for admin approval within 24 hours.",
+    "missing-token":
+      "Verification link is incomplete. Please use the full email link.",
     "server-error":
-      "Something went wrong while verifying your email. Please try again later or wait for admin approval.",
+      "Something went wrong while verifying your email. Please try again later or wait for admin approval within 24 hours.",
   };
   const verificationNotice = verifiedStatus
     ? verificationMessages[verifiedStatus] || verificationMessages["server-error"]
