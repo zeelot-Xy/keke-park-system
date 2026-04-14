@@ -12,6 +12,7 @@ const {
   requestDriverDeletion,
   confirmDriverDeletion,
   cancelDriverDeletion,
+  deleteRejectedDriver,
 } = require("../controllers/adminController");
 
 router.get(
@@ -38,6 +39,12 @@ router.post(
   authenticate,
   authorizeRole(["admin"]),
   cancelDriverDeletion,
+);
+router.delete(
+  "/drivers/:id/rejected",
+  authenticate,
+  authorizeRole(["admin"]),
+  deleteRejectedDriver,
 );
 router.post(
   "/approve/:id",

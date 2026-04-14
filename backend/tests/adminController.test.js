@@ -14,6 +14,7 @@ const {
   requestDriverDeletion,
   confirmDriverDeletion,
   cancelDriverDeletion,
+  deleteRejectedDriver,
 } = require("../controllers/adminController");
 
 describe("adminController", () => {
@@ -160,5 +161,24 @@ describe("adminController", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.payload.message).toMatch(/cancelled/i);
+  });
+
+  test("deleteRejectedDriver permanently removes a rejected driver", async () => {
+    pool.query.mockResolvedValueOnce([
+      [{ id: 7, full_name: "Rejected Driver" }],
+      { rowCount: 1 },
+    ]);
+
+    const req = { params: { id: "7" } };
+    const res = createResponse();
+
+    await deleteRejectedDriver(req, res);
+
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining("AND status = 'rejected'"),
+      ["7"],
+    );
+    expect(res.statusCode).toBe(200);
+    expect(res.payload.message).toMatch(/removed/i);
   });
 });

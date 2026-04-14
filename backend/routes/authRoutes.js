@@ -17,6 +17,8 @@ const {
 } = require("../utils/normalizers");
 
 const router = express.Router();
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const phonePattern = /^\+234[789][01]\d{8}$/;
 
 router.post(
   "/register",
@@ -59,10 +61,18 @@ router.post(
 router.post(
   "/login",
   [
-    body("phone")
-      .customSanitizer((value) => normalizePhone(value))
-      .matches(/^\+234[789][01]\d{8}$/)
-      .withMessage("Enter a valid Nigerian phone number."),
+    body("identifier")
+      .trim()
+      .customSanitizer((value) =>
+        emailPattern.test(value.trim().toLowerCase())
+          ? value.trim().toLowerCase()
+          : normalizePhone(value),
+      )
+      .custom((value) => {
+        if (emailPattern.test(value)) return true;
+        if (phonePattern.test(value)) return true;
+        throw new Error("Enter a valid email address or Nigerian phone number.");
+      }),
     body("password").trim().notEmpty().withMessage("Password is required."),
   ],
   login,

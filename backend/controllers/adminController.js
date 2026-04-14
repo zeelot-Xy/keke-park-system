@@ -288,6 +288,34 @@ const cancelDriverDeletion = async (req, res) => {
   }
 };
 
+const deleteRejectedDriver = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [rows, result] = await pool.query(
+      `DELETE FROM users
+       WHERE id = $1
+         AND role = 'driver'
+         AND status = 'rejected'
+       RETURNING id, full_name`,
+      [id],
+    );
+
+    if (!result.rowCount) {
+      return res.status(404).json({
+        message: "Rejected driver not found or already removed",
+      });
+    }
+
+    res.json({
+      message: "Rejected driver removed from the system list",
+      driver: rows[0],
+    });
+  } catch (err) {
+    console.error("Delete rejected driver error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 const loadFirstDriver = async (req, res) => {
   try {
     const [loadingRows] = await pool.query(
@@ -384,4 +412,5 @@ module.exports = {
   requestDriverDeletion,
   confirmDriverDeletion,
   cancelDriverDeletion,
+  deleteRejectedDriver,
 };

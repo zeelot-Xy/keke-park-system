@@ -81,7 +81,7 @@ describe("authController", () => {
       .mockReturnValueOnce("refresh-token");
 
     const req = {
-      body: { phone: "08000000001", password: "admin123" },
+      body: { identifier: "08000000001", password: "admin123" },
     };
     const res = createResponse();
 
@@ -105,7 +105,7 @@ describe("authController", () => {
     });
 
     const req = {
-      body: { phone: "12345", password: "admin123" },
+      body: { identifier: "12345", password: "admin123" },
     };
     const res = createResponse();
 
@@ -113,6 +113,41 @@ describe("authController", () => {
 
     expect(res.statusCode).toBe(400);
     expect(res.payload.message).toBe("Validation failed");
+  });
+
+  test("login accepts email address lookup", async () => {
+    pool.query.mockResolvedValueOnce([
+      [
+        {
+          id: 4,
+          role: "driver",
+          full_name: "Email User",
+          park_id: "KKP-0004",
+          phone: "+2348011111111",
+          status: "approved",
+          email: "driver@example.com",
+          password: "hashed-password",
+        },
+      ],
+    ]);
+    bcrypt.compare.mockResolvedValue(true);
+    jwt.sign
+      .mockReturnValueOnce("access-token")
+      .mockReturnValueOnce("refresh-token");
+
+    const req = {
+      body: { identifier: "Driver@Example.com", password: "Driver123!" },
+    };
+    const res = createResponse();
+
+    await login(req, res);
+
+    expect(pool.query).toHaveBeenCalledWith(
+      "SELECT * FROM users WHERE LOWER(email) = $1",
+      ["driver@example.com"],
+    );
+    expect(res.statusCode).toBe(200);
+    expect(res.payload.user.role).toBe("driver");
   });
 
   test("register sends verification email when valid email is provided", async () => {

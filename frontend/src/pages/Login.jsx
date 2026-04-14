@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion as Motion } from "framer-motion";
 import {
   Clock,
+  Mail,
   Phone,
   RadioTower,
   Shield,
@@ -36,7 +37,7 @@ const featureCards = [
 ];
 
 export default function Login({ setUser }) {
-  const [phone, setPhone] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
   const location = useLocation();
@@ -64,7 +65,7 @@ export default function Login({ setUser }) {
     event.preventDefault();
 
     try {
-      const res = await api.post("/api/auth/login", { phone, password });
+      const res = await api.post("/api/auth/login", { identifier, password });
       setAuthTokens(res.data);
       setUser(res.data.user);
       toast.success("Login successful");
@@ -189,7 +190,7 @@ export default function Login({ setUser }) {
                 />
               ) : null}
 
-              {!loginNotice && verificationNotice ? (
+      {!loginNotice && verificationNotice ? (
                 <InlineNotice
                   type={verifiedStatus === "success" ? "success" : "info"}
                   message={verificationNotice}
@@ -200,16 +201,19 @@ export default function Login({ setUser }) {
               <form onSubmit={handleLogin} className="space-y-5">
                 <label className="block">
                   <span className="mb-2 block text-sm font-semibold text-[#1D1A14]">
-                    Phone Number
+                    Email or Phone Number
                   </span>
                   <div className="relative">
-                    <Phone className="absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-[#6F6758]" />
+                    <div className="absolute top-1/2 left-4 flex -translate-y-1/2 items-center gap-1 text-[#6F6758]">
+                      <Mail className="h-4 w-4" />
+                      <Phone className="h-4 w-4" />
+                    </div>
                     <input
-                      type="tel"
-                      value={phone}
-                      onChange={(event) => setPhone(event.target.value)}
-                      placeholder="080 1234 5678"
-                      className="w-full rounded-xl border-2 border-[#D8D0BD] bg-white py-3.5 pr-4 pl-12 text-[#1D1A14] outline-none transition-all placeholder:text-[#6F6758]/50 focus:border-[#F4C542] focus:ring-4 focus:ring-[#F4C542]/20"
+                      type="text"
+                      value={identifier}
+                      onChange={(event) => setIdentifier(event.target.value)}
+                      placeholder="080 1234 5678 or name@example.com"
+                      className="w-full rounded-xl border-2 border-[#D8D0BD] bg-white py-3.5 pr-4 pl-16 text-[#1D1A14] outline-none transition-all placeholder:text-[#6F6758]/50 focus:border-[#F4C542] focus:ring-4 focus:ring-[#F4C542]/20"
                       required
                     />
                   </div>

@@ -20,6 +20,7 @@ const {
 
 const isUniqueViolation = (error) => error?.code === "23505";
 const isStorageFailure = (error) => error?.code === "PASSPORT_UPLOAD_FAILED";
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const getVerificationMessage = (reason) => {
   switch (reason) {
@@ -160,11 +161,16 @@ const login = async (req, res) => {
   }
 
   try {
-    const { phone, password } = req.body;
-    const normalizedPhone = normalizePhone(phone);
-    const [rows] = await pool.query("SELECT * FROM users WHERE phone = $1", [
-      normalizedPhone,
-    ]);
+    const { identifier, password } = req.body;
+    const normalizedIdentifier = identifier.trim().toLowerCase();
+    const isEmailLogin = emailPattern.test(normalizedIdentifier);
+    const query = isEmailLogin
+      ? "SELECT * FROM users WHERE LOWER(email) = $1"
+      : "SELECT * FROM users WHERE phone = $1";
+    const lookupValue = isEmailLogin
+      ? normalizedIdentifier
+      : normalizePhone(identifier);
+    const [rows] = await pool.query(query, [lookupValue]);
     const user = rows[0];
 
     if (!user || !(await bcrypt.compare(password, user.password))) {

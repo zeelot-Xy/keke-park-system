@@ -275,6 +275,22 @@ export default function AdminDashboard({ setUser }) {
     }
   };
 
+  const removeRejectedDriver = async (driver) => {
+    try {
+      const res = await api.delete(`/api/admin/drivers/${driver.id}/rejected`);
+      setNotice({
+        type: "info",
+        message: res.data.message,
+      });
+      fetchDrivers();
+      toast.success("Rejected driver removed");
+    } catch (err) {
+      toast.error(
+        err.response?.data?.message || "Could not remove rejected driver",
+      );
+    }
+  };
+
   if (bootstrapping) {
     return <DashboardSkeleton tone="dark" />;
   }
@@ -637,6 +653,7 @@ export default function AdminDashboard({ setUser }) {
                       driver.deletion_state === "awaiting_confirmation";
                     const showDeletionCountdown =
                       driver.deletion_state === "scheduled";
+                    const canRemoveRejected = driver.status === "rejected";
 
                     return (
                       <Motion.div
@@ -749,6 +766,16 @@ export default function AdminDashboard({ setUser }) {
                                     Cancel Delete
                                   </button>
                                 </>
+                              ) : null}
+
+                              {canRemoveRejected ? (
+                                <button
+                                  type="button"
+                                  onClick={() => removeRejectedDriver(driver)}
+                                  className="interactive-button rounded-full border border-[#C43F3F]/20 bg-[#FFF1F1] px-3 py-1.5 text-xs font-bold text-[#9C3535] transition hover:bg-[#ffe4e4]"
+                                >
+                                  Remove Rejected
+                                </button>
                               ) : null}
                             </div>
                           </div>
