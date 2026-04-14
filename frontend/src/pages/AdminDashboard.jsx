@@ -723,6 +723,11 @@ export default function AdminDashboard({ setUser }) {
                                   <Clock className="h-3 w-3" />
                                   Pending
                                 </span>
+                              ) : driver.status === "rejected" ? (
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#FBE4E4] px-3 py-1.5 text-xs font-bold text-[#B63A3A]">
+                                  <XCircle className="h-3 w-3" />
+                                  Rejected
+                                </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1.5 rounded-full bg-[#D8D0BD] px-3 py-1.5 text-xs font-bold text-[#6F6758]">
                                   Inactive

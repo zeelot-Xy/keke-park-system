@@ -1,5 +1,6 @@
 const pool = require("../db/connection");
 const bcrypt = require("bcryptjs");
+const { approveDriverWithParkId } = require("../services/driverApprovalService");
 const MINIMUM_LOADING_MINUTES = 2;
 const DELETE_GRACE_DAYS = 3;
 
@@ -23,19 +24,6 @@ const verifyAdminPassword = async (adminId, password) => {
   return bcrypt.compare(password, rows[0].password);
 };
 
-const generateNextParkId = async () => {
-  const [rows] = await pool.query(`
-    SELECT COALESCE(
-      MAX(CAST(NULLIF(SPLIT_PART(park_id, '-', 2), '') AS INTEGER)),
-      0
-    ) AS "lastParkNumber"
-    FROM users
-    WHERE park_id IS NOT NULL
-  `);
-
-  return `KKP-${String(rows[0].lastParkNumber + 1).padStart(4, "0")}`;
-};
-
 const getPendingDrivers = async (req, res) => {
   try {
     const [rows] = await pool.query(
@@ -54,37 +42,26 @@ const getPendingDrivers = async (req, res) => {
 const approveDriver = async (req, res) => {
   try {
     const { id } = req.params;
-    const [driverRows] = await pool.query(
-      "SELECT id, status, role, park_id FROM users WHERE id = $1 LIMIT 1",
-      [id],
-    );
+    const result = await approveDriverWithParkId(id);
 
-    if (!driverRows.length || driverRows[0].role !== "driver") {
+    if (result.outcome === "not_found") {
       return res.status(404).json({ message: "Driver not found" });
     }
 
-    if (driverRows[0].status !== "pending") {
+    if (result.outcome === "not_pending") {
       return res
         .status(400)
         .json({ message: "Only pending drivers can be approved" });
     }
 
-    const parkId = driverRows[0].park_id || (await generateNextParkId());
-    const [, result] = await pool.query(
-      `UPDATE users
-       SET status = 'approved', park_id = $1
-       WHERE id = $2 AND status = 'pending'`,
-      [parkId, id],
-    );
-
-    if (!result.rowCount) {
+    if (result.outcome !== "approved") {
       return res
         .status(409)
         .json({ message: "Driver approval could not be completed" });
     }
 
     global.io.emit("queueUpdated");
-    res.json({ message: "Driver approved", park_id: parkId });
+    res.json({ message: "Driver approved", park_id: result.parkId });
   } catch (err) {
     console.error("Approve driver error:", err);
     res.status(500).json({ message: "Server error" });

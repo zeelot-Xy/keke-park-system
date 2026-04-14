@@ -20,6 +20,10 @@ jest.mock("../services/passportStorage", () => ({
   uploadPassportPhoto: jest.fn(),
 }));
 
+jest.mock("../services/driverApprovalService", () => ({
+  approveDriverWithParkId: jest.fn(),
+}));
+
 jest.mock("../services/emailVerificationService", () => ({
   buildRedirectUrl: jest.fn(
     (status) => `http://localhost:5173/login?verified=${status}`,
@@ -41,6 +45,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { validationResult } = require("express-validator");
 const { uploadPassportPhoto } = require("../services/passportStorage");
+const { approveDriverWithParkId } = require("../services/driverApprovalService");
 const {
   createVerificationToken,
   hashVerificationToken,
@@ -301,6 +306,16 @@ describe("authController", () => {
         ],
       ])
       .mockResolvedValueOnce([[], { rowCount: 1 }]);
+    approveDriverWithParkId.mockResolvedValueOnce({
+      outcome: "approved",
+      parkId: "KKP-0010",
+      driver: {
+        id: 9,
+        status: "approved",
+        role: "driver",
+        park_id: "KKP-0010",
+      },
+    });
 
     const req = {
       query: { token: "raw-token" },
@@ -312,10 +327,36 @@ describe("authController", () => {
     expect(hashVerificationToken).toHaveBeenCalledWith("raw-token");
     expect(pool.query).toHaveBeenNthCalledWith(
       2,
-      expect.stringContaining("email_verified_at = NOW()"),
+      expect.stringContaining("email_verification_token = NULL"),
       [9],
     );
+    expect(approveDriverWithParkId).toHaveBeenCalledWith(9);
     expect(global.io.emit).toHaveBeenCalledWith("queueUpdated");
+    expect(res.redirectUrl).toBe(
+      "http://localhost:5173/login?verified=success",
+    );
+  });
+
+  test("verifyEmail preserves an existing park id for already-approved users", async () => {
+    pool.query.mockResolvedValueOnce([
+      [
+        {
+          id: 12,
+          status: "approved",
+          email_verification_token: "hashed:raw-token",
+          email_verified_at: null,
+        },
+      ],
+    ]).mockResolvedValueOnce([[], { rowCount: 1 }]);
+
+    const req = {
+      query: { token: "raw-token" },
+    };
+    const res = createResponse();
+
+    await verifyEmail(req, res);
+
+    expect(approveDriverWithParkId).not.toHaveBeenCalled();
     expect(res.redirectUrl).toBe(
       "http://localhost:5173/login?verified=success",
     );

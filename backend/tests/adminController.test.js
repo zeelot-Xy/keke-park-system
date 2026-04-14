@@ -4,9 +4,13 @@ jest.mock("../db/connection", () => ({
 jest.mock("bcryptjs", () => ({
   compare: jest.fn(),
 }));
+jest.mock("../services/driverApprovalService", () => ({
+  approveDriverWithParkId: jest.fn(),
+}));
 
 const pool = require("../db/connection");
 const bcrypt = require("bcryptjs");
+const { approveDriverWithParkId } = require("../services/driverApprovalService");
 const { createResponse } = require("./helpers/httpMocks");
 const {
   approveDriver,
@@ -24,36 +28,27 @@ describe("adminController", () => {
   });
 
   test("approveDriver assigns the next park id to pending drivers", async () => {
-    pool.query
-      .mockResolvedValueOnce([
-        [{ id: 14, status: "pending", role: "driver", park_id: null }],
-      ])
-      .mockResolvedValueOnce([[{ lastParkNumber: 17 }]])
-      .mockResolvedValueOnce([[], { rowCount: 1 }]);
+    approveDriverWithParkId.mockResolvedValueOnce({
+      outcome: "approved",
+      parkId: "KKP-0018",
+    });
 
     const req = { params: { id: "14" } };
     const res = createResponse();
 
     await approveDriver(req, res);
 
-    expect(pool.query).toHaveBeenNthCalledWith(
-      2,
-      expect.stringContaining('AS "lastParkNumber"'),
-    );
-    expect(pool.query).toHaveBeenNthCalledWith(
-      3,
-      expect.stringContaining("SET status = 'approved', park_id = $1"),
-      ["KKP-0018", "14"],
-    );
+    expect(approveDriverWithParkId).toHaveBeenCalledWith("14");
     expect(res.statusCode).toBe(200);
     expect(res.payload.park_id).toBe("KKP-0018");
     expect(global.io.emit).toHaveBeenCalledWith("queueUpdated");
   });
 
   test("approveDriver blocks non-pending drivers", async () => {
-    pool.query.mockResolvedValueOnce([
-      [{ id: 11, status: "approved", role: "driver", park_id: "KKP-0003" }],
-    ]);
+    approveDriverWithParkId.mockResolvedValueOnce({
+      outcome: "not_pending",
+      driver: { id: 11, status: "approved", role: "driver", park_id: "KKP-0003" },
+    });
 
     const req = { params: { id: "11" } };
     const res = createResponse();

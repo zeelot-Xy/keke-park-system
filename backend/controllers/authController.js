@@ -9,6 +9,7 @@ const {
 } = require("../utils/normalizers");
 const { setAuthCookies, clearAuthCookies } = require("../utils/cookies");
 const { uploadPassportPhoto } = require("../services/passportStorage");
+const { approveDriverWithParkId } = require("../services/driverApprovalService");
 const {
   buildRedirectUrl,
   buildVerificationUrl,
@@ -282,14 +283,18 @@ const verifyEmail = async (req, res) => {
     await pool.query(
       `UPDATE users
        SET email_verified_at = NOW(),
-           email_verification_token = NULL,
-           status = CASE
-             WHEN status = 'pending' THEN 'approved'
-             ELSE status
-           END
+           email_verification_token = NULL
        WHERE id = $1`,
       [user.id],
     );
+
+    if (user.status === "pending") {
+      const approvalResult = await approveDriverWithParkId(user.id);
+      if (approvalResult.outcome !== "approved") {
+        console.error("Email verification approval error:", approvalResult);
+        return res.redirect(buildRedirectUrl("server-error"));
+      }
+    }
 
     global.io.emit("queueUpdated");
     return res.redirect(buildRedirectUrl("success"));
